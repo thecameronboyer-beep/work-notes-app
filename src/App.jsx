@@ -18,12 +18,12 @@ const styles = {
     fontFamily: "Arial, sans-serif",
   },
   container: {
-    maxWidth: 1200,
+    maxWidth: 480,
     margin: "0 auto",
   },
   layout: {
     display: "grid",
-    gridTemplateColumns: "220px 1fr",
+    gridTemplateColumns: "1fr",
     gap: 12,
   },
   card: {
@@ -53,6 +53,7 @@ const styles = {
   },
   input: {
     width: "100%",
+    color: "#0f172a",
     boxSizing: "border-box",
     padding: "10px 12px",
     border: "1px solid #cbd5e1",
@@ -62,6 +63,7 @@ const styles = {
   },
   textarea: {
     width: "100%",
+    color: "#0f172a",
     boxSizing: "border-box",
     padding: "10px 12px",
     border: "1px solid #cbd5e1",
@@ -74,6 +76,7 @@ const styles = {
   button: {
     border: "1px solid #cbd5e1",
     background: "#fff",
+    color: "#0f172a",
     borderRadius: 14,
     padding: "10px 12px",
     fontSize: 14,
@@ -83,6 +86,10 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
+  },
+  smallButton: {
+    padding: "8px 10px",
+    fontSize: 13,
   },
   buttonPrimary: {
     background: "#0f172a",
@@ -112,7 +119,7 @@ const styles = {
   },
   materialRow: {
     display: "grid",
-    gridTemplateColumns: "1fr 140px 40px",
+    gridTemplateColumns: "1fr 90px 70px",
     gap: 12,
     alignItems: "end",
   },
@@ -423,7 +430,7 @@ export default function App() {
     <div style={styles.page}>
       <div style={styles.container}>
         <div style={styles.layout}>
-          <div style={{ ...styles.card, height: "fit-content" }}>
+          <div style={{ ...styles.card, height: "fit-content", display: view === "report" ? "none" : "block" }}>
             <div style={styles.cardBody}>
               <input
                 type="date"
@@ -600,7 +607,7 @@ export default function App() {
                                 <div style={{ fontSize: 14, marginTop: 6 }}><strong>Troubleshooting Steps Taken:</strong> {n.action}</div>
                                 <div style={{ marginTop: 8 }}>
                                   <button onClick={() => deleteNotePair(n.id)} style={styles.button}>
-                                   Delete
+                                    Delete
                                   </button>
                                 </div>
                               </div>
@@ -640,8 +647,8 @@ export default function App() {
                               />
                             </div>
                             <div>
-                              <button onClick={() => removeMaterial(m.id)} style={styles.button}>
-                               Delete
+                              <button onClick={() => removeMaterial(m.id)} style={{ ...styles.button, ...styles.smallButton }}>
+                                Delete
                               </button>
                             </div>
                           </div>
