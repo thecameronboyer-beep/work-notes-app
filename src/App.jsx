@@ -114,7 +114,6 @@ export default function App(){
   const [newDie,setNewDie]=useState("");
   const [newCoexNumber,setNewCoexNumber]=useState("02");
   const [touchStartX,setTouchStartX]=useState(null);
-  const [touchStartY,setTouchStartY]=useState(null);
   const [entryTab,setEntryTab]=useState("schedule");
   const [reportTab,setReportTab]=useState("schedule");
 
@@ -191,22 +190,16 @@ export default function App(){
   const goNext=()=>{ if(screen==="lines") setScreen("entry"); else if(screen==="entry") setScreen("report"); };
   const goBack=()=>{ if(screen==="report") setScreen("entry"); else if(screen==="entry") setScreen("lines"); };
   const handleTouchEnd=(e)=>{
-    if(touchStartX==null || touchStartY==null) return;
+    if(touchStartX==null) return;
     const endX=e.changedTouches[0].clientX;
-    const endY=e.changedTouches[0].clientY;
     const deltaX=touchStartX-endX;
-    const deltaY=touchStartY-endY;
 
-    if(screen==="entry" && Math.abs(deltaY)>Math.abs(deltaX) && Math.abs(deltaY)>60){
-      if(deltaY>0) moveLine(1);
-      if(deltaY<0) moveLine(-1);
-    } else if(Math.abs(deltaX)>60){
+    if(Math.abs(deltaX)>60){
       if(deltaX>0) goNext();
       if(deltaX<0) goBack();
     }
 
     setTouchStartX(null);
-    setTouchStartY(null);
   };
 
   const materialRowsForReport=(line,item)=>{
@@ -222,7 +215,7 @@ export default function App(){
   };
 
   return (
-    <div style={styles.page} onTouchStart={(e)=>{setTouchStartX(e.touches[0].clientX);setTouchStartY(e.touches[0].clientY);}} onTouchEnd={handleTouchEnd}>
+    <div style={styles.page} onTouchStart={(e)=>setTouchStartX(e.touches[0].clientX)} onTouchEnd={handleTouchEnd}>
       <div style={styles.container}>
         {screen==="lines" && (
           <div style={styles.card}><div style={styles.cardBody}>
@@ -235,7 +228,11 @@ export default function App(){
         {screen==="entry" && (
           <div style={{display:"flex",flexDirection:"column",gap:10}}><div style={styles.card}><div style={styles.cardBody}>
             <div style={styles.entryTabGrid}>{["schedule","troubleshoot","materials","attendance"].map((tab)=><button key={tab} onClick={()=>setEntryTab(tab)} style={{...styles.button,...styles.entryTabButton,...(entryTab===tab?styles.buttonPrimary:{})}}>{tab==="troubleshoot"?"Troubleshoot":tab[0].toUpperCase()+tab.slice(1)}</button>)}</div>
-            <div style={{fontWeight:800,fontSize:18,marginBottom:10}}>Line {selectedLine}</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <button onClick={()=>moveLine(-1)} style={{...styles.button,...styles.smallButton}}>↑</button>
+              <div style={{fontWeight:800,fontSize:18}}>Line {selectedLine}</div>
+              <button onClick={()=>moveLine(1)} style={{...styles.button,...styles.smallButton}}>↓</button>
+            </div>
 
             {entryTab==="schedule" && <div>
               <label style={styles.label}>Operator</label><input value={selected.operator} onChange={(e)=>updateOperator(e.target.value)} style={styles.input}/>
