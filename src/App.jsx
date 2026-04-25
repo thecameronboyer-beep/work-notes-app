@@ -4,7 +4,7 @@ import jsPDF from "jspdf";
 
 const LINE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 25, 26, 27, 28, 29, 30, 31];
 const SHIFT_OPTIONS = ["A", "B", "C"];
-const TABS = ["schedule", "troubleshoot", "materials", "attendance"];
+const TABS = ["schedule", "troubleshoot", "materials"];
 const SCREENS = ["lines", "entry", "report"];
 
 const LINE_GROUPS = [
@@ -253,19 +253,6 @@ function PdfButton({ onClick, isExporting }) {
 function LinesScreen({ date, shift, data, selectedLine, onDateChange, onShiftChange, onSelectLine }) {
   return (
     <Card>
-      <input type="date" value={date} onChange={(event) => onDateChange(event.target.value)} style={styles.input} />
-
-      <div style={{ marginTop: 14 }}>
-        <label style={styles.label}>Shift</label>
-        <div style={styles.shiftGrid}>
-          {SHIFT_OPTIONS.map((option) => (
-            <Button key={option} active={shift === option} onClick={() => onShiftChange(option)}>
-              {option}
-            </Button>
-          ))}
-        </div>
-      </div>
-
       <div style={{ marginTop: 14 }}>
         <div style={styles.lineGrid}>
           {LINE_GROUPS.map((group) => (
@@ -451,7 +438,6 @@ function EntryScreen(props) {
         {entryTab === "schedule" && <ScheduleEntry selected={selected} {...props} />}
         {entryTab === "troubleshoot" && <TroubleshootEntry selected={selected} {...props} />}
         {entryTab === "materials" && <MaterialsEntry selected={selected} {...props} />}
-        {entryTab === "attendance" && <div style={styles.muted}>Attendance tracking coming next.</div>}
       </Card>
     </div>
   );
@@ -569,7 +555,6 @@ function ReportScreen({ reportTab, setReportTab, ...props }) {
       {reportTab === "schedule" && <ScheduleReport {...props} />}
       {reportTab === "troubleshoot" && <TroubleshootReport {...props} />}
       {reportTab === "materials" && <MaterialsReport {...props} />}
-      {reportTab === "attendance" && <div style={styles.muted}>Attendance report coming next.</div>}
     </Card>
   );
 }
@@ -588,6 +573,7 @@ export default function App() {
   const [draftDie, setDraftDie] = useState("");
   const [newCoexNumber, setNewCoexNumber] = useState("02");
   const [touchStartX, setTouchStartX] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(`work-notes-${date}`);
@@ -800,7 +786,21 @@ export default function App() {
 
   return (
     <div style={styles.page} onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)} onTouchEnd={handleTouchEnd}>
-      <div style={styles.container}>
+     <div style={{ ...styles.container, position: "relative", paddingTop: 50 }}>
+      {/* Menu Button */}
+<button
+  onClick={() => setMenuOpen(true)}
+  style={{
+    ...styles.button,
+    ...styles.smallButton,
+    position: "absolute",
+    top: 10,
+    left: 10,
+    zIndex: 60
+  }}
+>
+  ☰
+</button>
         {screen === "lines" && (
           <LinesScreen
             date={date}
@@ -825,6 +825,71 @@ export default function App() {
           ))}
         </div>
       </div>
+      {/* Overlay + Slide Panel */}
+<>
+  <div
+    onClick={() => setMenuOpen(false)}
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      background: "rgba(0,0,0,0.3)",
+      zIndex: 40,
+      display: menuOpen ? "block" : "none"
+    }}
+  />
+
+  <div
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      height: "100%",
+      width: 260,
+      background: "#fff",
+      padding: 15,
+      zIndex: 50,
+      boxShadow: "2px 0 10px rgba(0,0,0,.2)",
+      transform: menuOpen ? "translateX(0)" : "translateX(-100%)",
+      transition: "transform 0.25s ease"
+    }}
+  >
+    <button
+      onClick={() => setMenuOpen(false)}
+      style={{ ...styles.button, ...styles.smallButton, marginBottom: 10 }}
+    >
+      Close
+    </button>
+
+    <label style={styles.label}>Date</label>
+    <input
+      type="date"
+      value={date}
+      onChange={(e) => setDate(e.target.value)}
+      style={styles.input}
+    />
+
+    <label style={{ ...styles.label, marginTop: 12 }}>Shift</label>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+     {SHIFT_OPTIONS.map((s) => (
+        <button
+          key={s}
+          onClick={() => setShift(s)}
+          style={{
+            ...styles.button,
+            ...(shift === s ? styles.buttonPrimary : {}),
+            fontSize: 12,
+            minHeight: 32
+          }}
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  </div>
+</>
     </div>
   );
 }
