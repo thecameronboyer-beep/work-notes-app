@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:share": "vite --host 0.0.0.0",
     "build": "vite build",
+    "build:github": "vite build --base=/work-notes-app/",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:share": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
