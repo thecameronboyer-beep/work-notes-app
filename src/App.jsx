@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { FileText, Home, X } from "lucide-react";
 
 const LINE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 25, 26, 27, 28, 29, 30, 31];
 const SHIFT_OPTIONS = ["A", "B", "C"];
-const TABS = ["schedule", "troubleshoot", "materials", "attendance"];
+const TABS = ["schedule", "troubleshoot", "materials"];
 const SCREENS = ["lines", "entry", "report"];
 
 const LINE_GROUPS = [
@@ -14,8 +15,17 @@ const LINE_GROUPS = [
 ];
 
 const styles = {
-  page: { minHeight: "100vh", background: "#f1f5f9", color: "#0f172a", padding: 10, fontFamily: "Arial, sans-serif", boxSizing: "border-box" },
-  container: { width: "100%", maxWidth: 430, margin: "0 auto" },
+  page: { minHeight: "100svh", background: "#cbd5e1", color: "#0f172a", fontFamily: "Arial, sans-serif", boxSizing: "border-box" },
+  appFrame: { width: "100%", maxWidth: 430, minHeight: "100svh", margin: "0 auto", display: "grid", gridTemplateColumns: "74px minmax(0, 1fr)", position: "relative", overflow: "hidden", background: "#f1f5f9" },
+  sidePanel: { minHeight: "100svh", background: "#0f172a", color: "#fff", padding: "10px 7px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8, borderRight: "1px solid #334155" },
+  sideButton: { width: "100%", minHeight: 58, border: "1px solid rgba(255,255,255,.16)", background: "rgba(255,255,255,.08)", color: "#fff", borderRadius: 12, padding: "8px 4px", fontSize: 11, fontWeight: 800, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 },
+  sideButtonActive: { background: "#fff", color: "#0f172a", borderColor: "#fff" },
+  reportScrim: { position: "absolute", inset: 0, zIndex: 30, border: 0, padding: 0, background: "rgba(15, 23, 42, .24)", cursor: "pointer" },
+  secondaryPanel: { position: "absolute", top: 0, bottom: 0, left: 0, width: 190, zIndex: 40, background: "#fff", borderRight: "1px solid #cbd5e1", boxShadow: "8px 0 22px rgba(15, 23, 42, .2)", padding: 10, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8 },
+  secondaryHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 },
+  secondaryTitle: { fontSize: 15, fontWeight: 900 },
+  closeButton: { width: 36, height: 36, border: "1px solid #cbd5e1", borderRadius: 10, background: "#fff", color: "#0f172a", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
+  container: { width: "100%", minWidth: 0, padding: 10, boxSizing: "border-box" },
   card: { background: "#fff", border: "1px solid #cbd5e1", borderRadius: 16, boxShadow: "0 1px 3px rgba(0,0,0,.08)" },
   cardBody: { padding: 12 },
   label: { display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 },
@@ -24,7 +34,7 @@ const styles = {
   button: { border: "1px solid #cbd5e1", background: "#fff", color: "#0f172a", borderRadius: 14, padding: "10px 12px", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 42 },
   smallButton: { padding: "7px 9px", fontSize: 12, minHeight: 36 },
   buttonPrimary: { background: "#0f172a", color: "#fff", border: "1px solid #0f172a" },
-  tabGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 10, position: "sticky", top: 0, zIndex: 20, background: "#fff", paddingBottom: 8, borderBottom: "1px solid #e2e8f0" },
+  tabGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10, position: "sticky", top: 0, zIndex: 20, background: "#fff", paddingBottom: 8, borderBottom: "1px solid #e2e8f0" },
   tabButton: { padding: "7px 3px", fontSize: 11, minHeight: 38 },
   lineGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 },
   lineColumn: { display: "flex", flexDirection: "column", gap: 6 },
@@ -40,7 +50,6 @@ const styles = {
   reportHeadRow: { fontSize: 10, fontWeight: 700, borderBottom: "1px solid #cbd5e1", paddingBottom: 3, marginBottom: 5, lineHeight: "12px" },
   reportRow: { fontSize: 10, lineHeight: "12px", alignItems: "start", wordBreak: "break-word" },
   muted: { fontSize: 13, color: "#64748b" },
-  bottomNav: { position: "sticky", bottom: 0, background: "#f1f5f9", paddingTop: 8, marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
 };
 
 const makeId = () => {
@@ -152,6 +161,20 @@ const normalizeSavedData = (savedData) => {
   return base;
 };
 
+const loadSavedData = (workDate) => {
+  if (typeof localStorage === "undefined") return createAllLineData();
+
+  const saved = localStorage.getItem(`work-notes-${workDate}`);
+  if (!saved) return createAllLineData();
+
+  try {
+    return normalizeSavedData(JSON.parse(saved));
+  } catch (error) {
+    console.error("Could not load saved work notes:", error);
+    return createAllLineData();
+  }
+};
+
 const getFilledBatches = (lineData) => lineData.batches.filter((batch) => hasText(batch.batch) || hasText(batch.die) || hasText(batch.description) || hasText(batch.quantity));
 
 const getMaterialRowsForReport = (line, lineData) => {
@@ -227,6 +250,46 @@ function TabButtons({ activeTab, onChange }) {
         </Button>
       ))}
     </div>
+  );
+}
+
+function SidePanel({ screen, reportPanelOpen, onHomeClick, onReportsClick }) {
+  const reportActive = screen === "report" || reportPanelOpen;
+
+  return (
+    <nav style={styles.sidePanel} aria-label="Main">
+      <button type="button" style={{ ...styles.sideButton, ...(screen === "lines" ? styles.sideButtonActive : {}) }} onClick={onHomeClick}>
+        <Home size={18} aria-hidden="true" />
+        <span>Home</span>
+      </button>
+
+      <button type="button" style={{ ...styles.sideButton, ...(reportActive ? styles.sideButtonActive : {}) }} onClick={onReportsClick}>
+        <FileText size={18} aria-hidden="true" />
+        <span>Reports</span>
+      </button>
+    </nav>
+  );
+}
+
+function ReportSidePanel({ reportTab, onSelectReport, onClose }) {
+  return (
+    <>
+      <button type="button" aria-label="Close reports" style={styles.reportScrim} onClick={onClose} />
+      <aside style={styles.secondaryPanel} aria-label="Reports">
+        <div style={styles.secondaryHeader}>
+          <div style={styles.secondaryTitle}>Reports</div>
+          <button type="button" aria-label="Close reports" style={styles.closeButton} onClick={onClose}>
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        {TABS.map((tab) => (
+          <Button key={tab} active={reportTab === tab} onClick={() => onSelectReport(tab)} style={{ justifyContent: "flex-start" }}>
+            {tabLabel(tab)}
+          </Button>
+        ))}
+      </aside>
+    </>
   );
 }
 
@@ -443,15 +506,14 @@ function EntryScreen(props) {
         <TabButtons activeTab={entryTab} onChange={setEntryTab} />
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <Button small onClick={() => moveLine(1)}>↑</Button>
+          <Button small onClick={() => moveLine(1)}>Up</Button>
           <div style={{ fontWeight: 800, fontSize: 18 }}>Line {selectedLine}</div>
-          <Button small onClick={() => moveLine(-1)}>↓</Button>
+          <Button small onClick={() => moveLine(-1)}>Down</Button>
         </div>
 
         {entryTab === "schedule" && <ScheduleEntry selected={selected} {...props} />}
         {entryTab === "troubleshoot" && <TroubleshootEntry selected={selected} {...props} />}
         {entryTab === "materials" && <MaterialsEntry selected={selected} {...props} />}
-        {entryTab === "attendance" && <div style={styles.muted}>Attendance tracking coming next.</div>}
       </Card>
     </div>
   );
@@ -562,14 +624,12 @@ function MaterialsReport({ data, date, shift, exportReportPdf, isExporting }) {
   );
 }
 
-function ReportScreen({ reportTab, setReportTab, ...props }) {
+function ReportScreen({ reportTab, ...props }) {
   return (
     <Card>
-      <TabButtons activeTab={reportTab} onChange={setReportTab} />
       {reportTab === "schedule" && <ScheduleReport {...props} />}
       {reportTab === "troubleshoot" && <TroubleshootReport {...props} />}
       {reportTab === "materials" && <MaterialsReport {...props} />}
-      {reportTab === "attendance" && <div style={styles.muted}>Attendance report coming next.</div>}
     </Card>
   );
 }
@@ -578,31 +638,17 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [shift, setShift] = useState("A");
   const [date, setDate] = useState(todayString());
-  const [data, setData] = useState(createAllLineData());
+  const [data, setData] = useState(() => loadSavedData(todayString()));
   const [selectedLine, setSelectedLine] = useState("1");
   const [screen, setScreen] = useState("lines");
   const [entryTab, setEntryTab] = useState("schedule");
   const [reportTab, setReportTab] = useState("schedule");
+  const [isReportPanelOpen, setIsReportPanelOpen] = useState(false);
   const [draftNote, setDraftNote] = useState("");
   const [draftAction, setDraftAction] = useState("");
   const [draftDie, setDraftDie] = useState("");
   const [newCoexNumber, setNewCoexNumber] = useState("02");
   const [touchStartX, setTouchStartX] = useState(null);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(`work-notes-${date}`);
-    if (!saved) {
-      setData(createAllLineData());
-      return;
-    }
-
-    try {
-      setData(normalizeSavedData(JSON.parse(saved)));
-    } catch (error) {
-      console.error("Could not load saved work notes:", error);
-      setData(createAllLineData());
-    }
-  }, [date]);
 
   useEffect(() => {
     localStorage.setItem(`work-notes-${date}`, JSON.stringify(data));
@@ -727,9 +773,15 @@ export default function App() {
     }
   };
 
+  const changeDate = (nextDate) => {
+    setDate(nextDate);
+    setData(loadSavedData(nextDate));
+  };
+
   const selectLine = (line) => {
     setSelectedLine(String(line));
     setScreen("entry");
+    setIsReportPanelOpen(false);
   };
 
   const moveLine = (direction) => {
@@ -745,11 +797,33 @@ export default function App() {
   const moveScreen = (direction) => {
     const currentIndex = SCREENS.indexOf(screen);
     const nextScreen = SCREENS[currentIndex + direction];
-    if (nextScreen) setScreen(nextScreen);
+    if (nextScreen) {
+      setScreen(nextScreen);
+      setIsReportPanelOpen(false);
+    }
+  };
+
+  const goHome = () => {
+    setScreen("lines");
+    setIsReportPanelOpen(false);
+  };
+
+  const toggleReportPanel = () => {
+    setIsReportPanelOpen((isOpen) => !isOpen);
+  };
+
+  const selectReport = (tab) => {
+    setReportTab(tab);
+    setScreen("report");
+    setIsReportPanelOpen(false);
   };
 
   const handleTouchEnd = (event) => {
     if (touchStartX == null) return;
+    if (isReportPanelOpen) {
+      setTouchStartX(null);
+      return;
+    }
 
     const endX = event.changedTouches[0].clientX;
     const deltaX = touchStartX - endX;
@@ -800,29 +874,27 @@ export default function App() {
 
   return (
     <div style={styles.page} onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)} onTouchEnd={handleTouchEnd}>
-      <div style={styles.container}>
-        {screen === "lines" && (
-          <LinesScreen
-            date={date}
-            shift={shift}
-            data={data}
-            selectedLine={selectedLine}
-            onDateChange={setDate}
-            onShiftChange={setShift}
-            onSelectLine={selectLine}
-          />
-        )}
+      <div style={styles.appFrame}>
+        {isReportPanelOpen && <ReportSidePanel reportTab={reportTab} onSelectReport={selectReport} onClose={() => setIsReportPanelOpen(false)} />}
 
-        {screen === "entry" && <EntryScreen {...sharedEntryProps} />}
+        <SidePanel screen={screen} reportPanelOpen={isReportPanelOpen} onHomeClick={goHome} onReportsClick={toggleReportPanel} />
 
-        {screen === "report" && <ReportScreen reportTab={reportTab} setReportTab={setReportTab} {...sharedReportProps} />}
+        <div style={styles.container}>
+          {screen === "lines" && (
+            <LinesScreen
+              date={date}
+              shift={shift}
+              data={data}
+              selectedLine={selectedLine}
+              onDateChange={changeDate}
+              onShiftChange={setShift}
+              onSelectLine={selectLine}
+            />
+          )}
 
-        <div style={styles.bottomNav}>
-          {SCREENS.map((screenName) => (
-            <Button key={screenName} active={screen === screenName} small onClick={() => setScreen(screenName)}>
-              {screenName === "lines" ? "Lines" : screenName === "entry" ? "Entry" : "Reports"}
-            </Button>
-          ))}
+          {screen === "entry" && <EntryScreen {...sharedEntryProps} />}
+
+          {screen === "report" && <ReportScreen reportTab={reportTab} {...sharedReportProps} />}
         </div>
       </div>
     </div>
