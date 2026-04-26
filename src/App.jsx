@@ -299,6 +299,7 @@ function ScheduleEntry({
   confirmDeleteBatchId,
   addBatchTroubleshoot,
   addBatchMaterial,
+  updateBatchMaterial,
   updateTroubleshootNote,
   updateMaterial,
   removeBatchMaterial,
@@ -426,16 +427,16 @@ function ScheduleEntry({
 
 
     <div style={{ marginTop: 8 }}>
-      <Field label="Natural" value={material.natural || ""} onChange={(value) => updateMaterial(material.id, "natural", value)} />
+      <Field label="Natural" value={material.natural || ""} onChange={(value) => updateBatchMaterial(material.id, "natural", value)} />
     </div>
 
     <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
-      <Field label="Color" value={material.color || ""} onChange={(value) => updateMaterial(material.id, "color", value)} />
-      <Field label="Regrind" value={material.regrind || ""} onChange={(value) => updateMaterial(material.id, "regrind", value)} />
+      <Field label="Color" value={material.color || ""} onChange={(value) => updateBatchMaterial(material.id, "color", value)} />
+      <Field label="Regrind" value={material.regrind || ""} onChange={(value) => updateBatchMaterial(material.id, "regrind", value)} />
     </div>
 
     <div style={{ marginTop: 8 }}>
-      <Field label="Additive" value={material.additive || ""} onChange={(value) => updateMaterial(material.id, "additive", value)} />
+      <Field label="Additive" value={material.additive || ""} onChange={(value) => updateBatchMaterial(material.id, "additive", value)} />
     </div>
   </div>
 ))}
@@ -523,12 +524,12 @@ function MaterialsEntry({ selected, newCoexNumber, setNewCoexNumber, addMaterial
             </div>
 
             <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
-              <Field label="Color" value={material.color} onChange={(value) => updateMaterial(material.id, "color", value)} />
-              <Field label="Regrind" value={material.regrind} onChange={(value) => updateMaterial(material.id, "regrind", value)} />
+              <Field label="Color" value={material.color} onChange={(value) => updateBatchMaterial(material.id, "color", value)} />
+              <Field label="Regrind" value={material.regrind} onChange={(value) => updateBatchMaterial(material.id, "regrind", value)} />
             </div>
 
             <div style={{ marginTop: 8 }}>
-              <Field label="Additive" value={material.additive} onChange={(value) => updateMaterial(material.id, "additive", value)} />
+              <Field label="Additive" value={material.additive} onChange={(value) => updateBatchMaterial(material.id, "additive", value)} />
             </div>
 
             <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "end" }}>
@@ -592,81 +593,67 @@ function EntryScreen(props) {
             alignItems: "start"
           }}
         >
-          <TabButtons activeTab={entryTab} onChange={setEntryTab} />
 
-          <div style={{ position: "relative" }}>
-            <Button
-              small
-              active
-              onClick={() => setAddMenuOpen(!addMenuOpen)}
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 999,
-                padding: 0
-              }}
-            >
-              +
-            </Button>
+</div>
+        <div style={{ position: "relative", marginBottom: 10, minHeight: 32 }}>
+  
+  {/* Line title - LEFT */}
+  <div style={{ position: "absolute", left: 0, top: 0, fontWeight: 800, fontSize: 18 }}>
+    Line {selectedLine}
+  </div>
 
-            {addMenuOpen && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 44,
-                  right: 0,
-                  background: "#fff",
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 12,
-                  boxShadow: "0 4px 12px rgba(0,0,0,.15)",
-                  padding: 6,
-                  minWidth: 150,
-                  zIndex: 100
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    addBatch();
-                    setAddMenuOpen(false);
-                  }}
-                  style={{
-                    ...styles.button,
-                    ...styles.smallButton,
-                    width: "100%",
-                    justifyContent: "flex-start",
-                    background: "#fff",
-                    color: "#0f172a"
-                  }}
-                >
-                  Add Batch
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+  {/* + button - RIGHT */}
+  <Button
+    small
+    onClick={() => setAddMenuOpen(!addMenuOpen)}
+    style={{
+      position: "absolute",
+      right: 0,
+      top: 0,
+      borderRadius: 999,
+      width: 32,
+      height: 32,
+      padding: 0
+    }}
+  >
+    +
+  </Button>
+  {addMenuOpen && (
+  <div
+    style={{
+      position: "absolute",
+      top: 36,
+      right: 0,
+      background: "#fff",
+      border: "1px solid #cbd5e1",
+      borderRadius: 12,
+      boxShadow: "0 4px 12px rgba(0,0,0,.15)",
+      padding: 6,
+      minWidth: 150,
+      zIndex: 100
+    }}
+  >
+    <button
+      type="button"
+      onClick={() => {
+        addBatch();
+        setAddMenuOpen(false);
+      }}
+      style={{
+        ...styles.button,
+        ...styles.smallButton,
+        width: "100%",
+        justifyContent: "flex-start",
+        background: "#fff",
+        color: "#0f172a"
+      }}
+    >
+      Add Batch
+    </button>
+  </div>
+)}
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <Button
-            small
-            onClick={() => prevLine && moveLine(-1)}
-            style={{ opacity: prevLine ? 1 : 0.3 }}
-          >
-            {prevLine || "-"}
-          </Button>
-
-          <div style={{ fontWeight: 800, fontSize: 18 }}>
-            Line {selectedLine}
-          </div>
-
-          <Button
-            small
-            onClick={() => nextLine && moveLine(1)}
-            style={{ opacity: nextLine ? 1 : 0.3 }}
-          >
-            {nextLine || "-"}
-          </Button>
-        </div>
+</div>
 
         {entryTab === "schedule" && <ScheduleEntry selected={selected} {...props} />}
         {entryTab === "troubleshoot" && <TroubleshootEntry selected={selected} {...props} />}
@@ -966,6 +953,17 @@ const updateTroubleshootNote = (id, field, value) => {
       return { ...lineData, materials: materials.length ? materials : [createMaterial()] };
     });
   };
+  const updateBatchMaterial = (id, field, value) => {
+  updateSelectedLine((lineData) => ({
+    ...lineData,
+    batches: lineData.batches.map((batch) => ({
+      ...batch,
+      materials: (batch.materials || []).map((material) =>
+        material.id === id ? { ...material, [field]: value } : material
+      ),
+    })),
+  }));
+};
 const removeBatchMaterial = (id) => {
   updateSelectedLine((lineData) => ({
     ...lineData,
@@ -1119,6 +1117,7 @@ const removeBatchMaterial = (id) => {
     addBatchMaterial,
     updateTroubleshootNote,
     updateMaterial,
+    updateBatchMaterial,
     removeBatchMaterial,
     deleteNote,
     newCoexNumber,
@@ -1147,7 +1146,9 @@ const removeBatchMaterial = (id) => {
   style={{
     position: "absolute",
     top: 10,
-    left: 0,
+    right: 10,
+    width: "auto",
+    justifyContent: "flex-end",
     width: "100%",
     display: "flex",
     justifyContent: "center",
@@ -1156,12 +1157,16 @@ const removeBatchMaterial = (id) => {
 >
   <button
     onClick={() => setScreen("lines")}
-    style={{
-      ...styles.button,
-      ...styles.smallButton
-    }}
-  >
-    Lines
+  style={{
+    ...styles.button,
+    ...styles.smallButton,
+    position: "absolute",
+    top: -1,
+    right: 0,
+    zIndex: 55
+  }}
+>
+  Home
   </button>
 </div>
       {/* Menu Button */}
@@ -1253,7 +1258,18 @@ const removeBatchMaterial = (id) => {
         </button>
       ))}
     </div>
-
+<div style={{ marginTop: 20 }}>
+  <button
+    onClick={() => setMenuMode("entry")}
+    style={{
+      ...styles.button,
+      width: "100%",
+      justifyContent: "center"
+    }}
+  >
+    Entry
+  </button>
+</div>
     <div style={{ marginTop: 20 }}>
       <button
         onClick={() => setMenuMode("reports")}
@@ -1268,7 +1284,42 @@ const removeBatchMaterial = (id) => {
     </div>
   </>
 )}
+{menuMode === "entry" && (
+  <>
+    <div style={{ marginBottom: 12 }}>
+      <button
+        onClick={() => setMenuMode("main")}
+        style={{ ...styles.button, ...styles.smallButton }}
+      >
+        ← Back
+      </button>
+    </div>
 
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <button
+        onClick={() => {
+          setEntryTab("schedule");
+          setScreen("entry");
+          setMenuOpen(false);
+        }}
+        style={styles.button}
+      >
+        Schedule
+      </button>
+
+      <button
+        onClick={() => {
+          setEntryTab("materials");
+          setScreen("entry");
+          setMenuOpen(false);
+        }}
+        style={styles.button}
+      >
+        Materials
+      </button>
+    </div>
+  </>
+)}
 {menuMode === "reports" && (
   <>
     <div style={{ marginBottom: 12 }}>
