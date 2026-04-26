@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-import { FileText, Home, X } from "lucide-react";
+import { FileText, Home, Menu, X } from "lucide-react";
 
 const LINE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 25, 26, 27, 28, 29, 30, 31];
 const SHIFT_OPTIONS = ["A", "B", "C"];
@@ -16,12 +16,19 @@ const LINE_GROUPS = [
 
 const styles = {
   page: { minHeight: "100svh", background: "#cbd5e1", color: "#0f172a", fontFamily: "Arial, sans-serif", boxSizing: "border-box" },
-  appFrame: { width: "100%", maxWidth: 430, minHeight: "100svh", margin: "0 auto", display: "grid", gridTemplateColumns: "74px minmax(0, 1fr)", position: "relative", overflow: "hidden", background: "#f1f5f9" },
-  sidePanel: { minHeight: "100svh", background: "#0f172a", color: "#fff", padding: "10px 7px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8, borderRight: "1px solid #334155" },
-  sideButton: { width: "100%", minHeight: 58, border: "1px solid rgba(255,255,255,.16)", background: "rgba(255,255,255,.08)", color: "#fff", borderRadius: 12, padding: "8px 4px", fontSize: 11, fontWeight: 800, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 },
+  appFrame: { width: "100%", maxWidth: 430, minHeight: "100svh", margin: "0 auto", position: "relative", overflow: "hidden", background: "#f1f5f9" },
+  homeHeader: { display: "flex", alignItems: "center", marginBottom: 10 },
+  menuButton: { minHeight: 42, border: "1px solid #0f172a", background: "#0f172a", color: "#fff", borderRadius: 14, padding: "8px 10px", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 },
+  menuScrim: { position: "absolute", top: 62, right: 0, bottom: 0, left: 0, zIndex: 30, border: 0, padding: 0, background: "rgba(15, 23, 42, .24)", cursor: "pointer" },
+  sidePanel: { position: "absolute", top: 62, bottom: 0, left: 0, width: 210, zIndex: 35, background: "#0f172a", color: "#fff", padding: 10, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8, borderRight: "1px solid #334155", boxShadow: "8px 0 22px rgba(15, 23, 42, .2)" },
+  sideHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 },
+  sideTitle: { fontSize: 15, fontWeight: 900 },
+  sideSection: { display: "grid", gap: 8, paddingBottom: 8, marginBottom: 2, borderBottom: "1px solid rgba(255,255,255,.16)" },
+  sideCloseButton: { width: 36, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 10, background: "rgba(255,255,255,.08)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
+  sideButton: { width: "100%", minHeight: 48, border: "1px solid rgba(255,255,255,.16)", background: "rgba(255,255,255,.08)", color: "#fff", borderRadius: 12, padding: "8px 10px", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 8 },
   sideButtonActive: { background: "#fff", color: "#0f172a", borderColor: "#fff" },
-  reportScrim: { position: "absolute", inset: 0, zIndex: 30, border: 0, padding: 0, background: "rgba(15, 23, 42, .24)", cursor: "pointer" },
-  secondaryPanel: { position: "absolute", top: 0, bottom: 0, left: 0, width: 190, zIndex: 40, background: "#fff", borderRight: "1px solid #cbd5e1", boxShadow: "8px 0 22px rgba(15, 23, 42, .2)", padding: 10, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8 },
+  reportScrim: { position: "absolute", top: 62, right: 0, bottom: 0, left: 0, zIndex: 40, border: 0, padding: 0, background: "rgba(15, 23, 42, .24)", cursor: "pointer" },
+  secondaryPanel: { position: "absolute", top: 62, bottom: 0, left: 0, width: 210, zIndex: 45, background: "#fff", borderRight: "1px solid #cbd5e1", boxShadow: "8px 0 22px rgba(15, 23, 42, .2)", padding: 10, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8 },
   secondaryHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 },
   secondaryTitle: { fontSize: 15, fontWeight: 900 },
   closeButton: { width: 36, height: 36, border: "1px solid #cbd5e1", borderRadius: 10, background: "#fff", color: "#0f172a", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
@@ -68,12 +75,47 @@ const formatDisplayDate = (iso) => {
 
 const sanitizeFilename = (value) => String(value || "report").replace(/[^a-z0-9-_]+/gi, "_");
 const hasText = (value) => String(value || "").trim().length > 0;
+const hasMaterialContent = (material) =>
+  [
+    material.batch,
+    material.die,
+    material.natural,
+    material.naturalPercent,
+    material.color,
+    material.colorPercent,
+    material.regrind,
+    material.regrindPercent,
+    material.additive,
+    material.additivePercent,
+  ].some(hasText) || material.coexes?.length > 0;
+const withPercent = (value, percent) => {
+  if (!hasText(percent)) return value;
+  const cleanPercent = String(percent).trim();
+  const displayPercent = cleanPercent.endsWith("%") ? cleanPercent : `${cleanPercent}%`;
+  return hasText(value) ? `${value} (${displayPercent})` : displayPercent;
+};
 const tabLabel = (tab) => (tab === "troubleshoot" ? "Troubleshoot" : tab[0].toUpperCase() + tab.slice(1));
 
 const createCoex = (number = "02") => ({ id: makeId(), number, natural: "", color: "", regrind: "", additive: "" });
-const createMaterial = () => ({ id: makeId(), batch: "", die: "", natural: "", color: "", regrind: "", additive: "", coexes: [] });
-const createBatch = () => ({ id: makeId(), batch: "", die: "", description: "", quantity: "" });
-const createLineData = () => ({ operator: "", batches: [createBatch()], materials: [createMaterial()], notes: [] });
+const createMaterial = (batchId = "", batch = "", die = "") => ({
+  id: makeId(),
+  batchId,
+  batch,
+  die,
+  natural: "",
+  naturalPercent: "",
+  color: "",
+  colorPercent: "",
+  regrind: "",
+  regrindPercent: "",
+  additive: "",
+  additivePercent: "",
+  coexes: [],
+  confirmed: false,
+});
+const createBatch = () => ({ id: makeId(), batch: "", die: "", description: "", quantity: "", confirmed: false });
+const createNote = (batchId = "", die = "") => ({ id: makeId(), batchId, note: "", action: "", result: "", die, confirmed: false });
+const createLineData = () => ({ operator: "", batches: [createBatch()], materials: [], notes: [] });
 const createAllLineData = () => Object.fromEntries(LINE_NUMBERS.map((line) => [String(line), createLineData()]));
 
 const normalizeCoexes = (coexes) => {
@@ -89,13 +131,15 @@ const normalizeCoexes = (coexes) => {
 };
 
 const normalizeMaterials = (materials) => {
-  if (!Array.isArray(materials) || materials.length === 0) return [createMaterial()];
+  if (!Array.isArray(materials) || materials.length === 0) return [];
 
   return materials.map((material) => {
     if (material?.isCoex) {
       return {
         ...createMaterial(),
         id: material.id || makeId(),
+        batchId: material.batchId || "",
+        confirmed: Boolean(material.confirmed),
         coexes: [
           {
             id: material.id || makeId(),
@@ -111,13 +155,19 @@ const normalizeMaterials = (materials) => {
 
     return {
       id: material?.id || makeId(),
+      batchId: material?.batchId || "",
       batch: material?.batch || "",
       die: material?.die || "",
       natural: material?.natural || "",
+      naturalPercent: material?.naturalPercent || "",
       color: material?.color || material?.material || "",
+      colorPercent: material?.colorPercent || "",
       regrind: material?.regrind || "",
+      regrindPercent: material?.regrindPercent || "",
       additive: material?.additive || "",
+      additivePercent: material?.additivePercent || "",
       coexes: normalizeCoexes(material?.coexes),
+      confirmed: Boolean(material?.confirmed),
     };
   });
 };
@@ -131,6 +181,7 @@ const normalizeBatches = (lineData) => {
     die: batch?.die || "",
     description: batch?.description || "",
     quantity: batch?.quantity || "",
+    confirmed: Boolean(batch?.confirmed),
   }));
 };
 
@@ -139,9 +190,12 @@ const normalizeNotes = (notes) => {
 
   return notes.map((note) => ({
     id: note?.id || makeId(),
+    batchId: note?.batchId || "",
     note: note?.note || note?.issue || "",
     action: note?.action || "",
+    result: note?.result || "",
     die: note?.die || "",
+    confirmed: Boolean(note?.confirmed),
   }));
 };
 
@@ -180,19 +234,21 @@ const getFilledBatches = (lineData) => lineData.batches.filter((batch) => hasTex
 const getMaterialRowsForReport = (line, lineData) => {
   const rows = [];
   const fallbackDie = lineData.batches?.[0]?.die || "";
+  const batchesById = new Map((lineData.batches || []).map((batch) => [batch.id, batch]));
 
   lineData.materials.forEach((material, materialIndex) => {
     const hasMainMaterial = [material.batch, material.die, material.natural, material.color, material.regrind, material.additive].some(hasText) || material.coexes?.length > 0;
     if (!hasMainMaterial) return;
+    const linkedBatch = batchesById.get(material.batchId);
 
     rows.push({
       label: materialIndex === 0 ? line : "",
-      die: material.die || (materialIndex === 0 ? fallbackDie : ""),
-      batch: material.batch,
-      natural: material.natural,
-      color: material.color,
-      regrind: material.regrind,
-      additive: material.additive,
+      die: material.die || linkedBatch?.die || (materialIndex === 0 ? fallbackDie : ""),
+      batch: material.batch || linkedBatch?.batch || "",
+      natural: withPercent(material.natural, material.naturalPercent),
+      color: withPercent(material.color, material.colorPercent),
+      regrind: withPercent(material.regrind, material.regrindPercent),
+      additive: withPercent(material.additive, material.additivePercent),
     });
 
     material.coexes.forEach((coex) => {
@@ -241,23 +297,93 @@ function Field({ label, value, onChange, textarea = false }) {
   );
 }
 
-function TabButtons({ activeTab, onChange }) {
+function DisplayValue({ label, value, wide = false }) {
   return (
-    <div style={styles.tabGrid}>
-      {TABS.map((tab) => (
-        <Button key={tab} active={activeTab === tab} small style={styles.tabButton} onClick={() => onChange(tab)}>
-          {tabLabel(tab)}
-        </Button>
-      ))}
+    <div style={{ gridColumn: wide ? "1 / -1" : "auto" }}>
+      <div style={{ ...styles.muted, fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{hasText(value) ? value : "-"}</div>
     </div>
   );
 }
 
-function SidePanel({ screen, reportPanelOpen, onHomeClick, onReportsClick }) {
+function DisplayGrid({ children }) {
+  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{children}</div>;
+}
+
+function MaterialMixFields({ material, updateMaterial }) {
+  const compactGrid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 54px minmax(0, 1fr) 54px", gap: 6, alignItems: "end" };
+
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={compactGrid}>
+        <Field label="Natural" value={material.natural} onChange={(value) => updateMaterial(material.id, "natural", value)} />
+        <Field label="%" value={material.naturalPercent} onChange={(value) => updateMaterial(material.id, "naturalPercent", value)} />
+        <Field label="Color" value={material.color} onChange={(value) => updateMaterial(material.id, "color", value)} />
+        <Field label="%" value={material.colorPercent} onChange={(value) => updateMaterial(material.id, "colorPercent", value)} />
+      </div>
+
+      <div style={compactGrid}>
+        <Field label="Regrind" value={material.regrind} onChange={(value) => updateMaterial(material.id, "regrind", value)} />
+        <Field label="%" value={material.regrindPercent} onChange={(value) => updateMaterial(material.id, "regrindPercent", value)} />
+        <Field label="Additive" value={material.additive} onChange={(value) => updateMaterial(material.id, "additive", value)} />
+        <Field label="%" value={material.additivePercent} onChange={(value) => updateMaterial(material.id, "additivePercent", value)} />
+      </div>
+    </div>
+  );
+}
+
+function MaterialMixDisplay({ material }) {
+  return (
+    <DisplayGrid>
+      <DisplayValue label="Natural" value={withPercent(material.natural, material.naturalPercent)} />
+      <DisplayValue label="Color" value={withPercent(material.color, material.colorPercent)} />
+      <DisplayValue label="Regrind" value={withPercent(material.regrind, material.regrindPercent)} />
+      <DisplayValue label="Additive" value={withPercent(material.additive, material.additivePercent)} />
+    </DisplayGrid>
+  );
+}
+
+function HomeHeader({ menuOpen, onMenuClick }) {
+  return (
+    <div style={styles.homeHeader}>
+      <button type="button" style={styles.menuButton} onClick={onMenuClick}>
+        {menuOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+        <span>Menu</span>
+      </button>
+    </div>
+  );
+}
+
+function SidePanel({ screen, reportPanelOpen, date, shift, onDateChange, onShiftChange, onHomeClick, onReportsClick, onClose }) {
   const reportActive = screen === "report" || reportPanelOpen;
 
   return (
     <nav style={styles.sidePanel} aria-label="Main">
+      <div style={styles.sideHeader}>
+        <div style={styles.sideTitle}>Menu</div>
+        <button type="button" aria-label="Close menu" style={styles.sideCloseButton} onClick={onClose}>
+          <X size={18} aria-hidden="true" />
+        </button>
+      </div>
+
+      <div style={styles.sideSection}>
+        <div>
+          <label style={styles.label}>Date</label>
+          <input type="date" value={date} onChange={(event) => onDateChange(event.target.value)} style={styles.input} />
+        </div>
+
+        <div>
+          <label style={styles.label}>Shift</label>
+          <div style={styles.shiftGrid}>
+            {SHIFT_OPTIONS.map((option) => (
+              <Button key={option} active={shift === option} onClick={() => onShiftChange(option)}>
+                {option}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <button type="button" style={{ ...styles.sideButton, ...(screen === "lines" ? styles.sideButtonActive : {}) }} onClick={onHomeClick}>
         <Home size={18} aria-hidden="true" />
         <span>Home</span>
@@ -313,197 +439,203 @@ function PdfButton({ onClick, isExporting }) {
   );
 }
 
-function LinesScreen({ date, shift, data, selectedLine, onDateChange, onShiftChange, onSelectLine }) {
+function LinesScreen({ data, selectedLine, onSelectLine }) {
   return (
     <Card>
-      <input type="date" value={date} onChange={(event) => onDateChange(event.target.value)} style={styles.input} />
+      <div style={styles.lineGrid}>
+        {LINE_GROUPS.map((group) => (
+          <div key={group.name} style={styles.lineColumn}>
+            <div style={styles.lineGroupTitle}>{group.name}</div>
+            {group.lines.map((line) => {
+              const lineKey = String(line);
+              const firstDie = data[lineKey]?.batches?.[0]?.die;
 
-      <div style={{ marginTop: 14 }}>
-        <label style={styles.label}>Shift</label>
-        <div style={styles.shiftGrid}>
-          {SHIFT_OPTIONS.map((option) => (
-            <Button key={option} active={shift === option} onClick={() => onShiftChange(option)}>
-              {option}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ marginTop: 14 }}>
-        <div style={styles.lineGrid}>
-          {LINE_GROUPS.map((group) => (
-            <div key={group.name} style={styles.lineColumn}>
-              <div style={styles.lineGroupTitle}>{group.name}</div>
-              {group.lines.map((line) => {
-                const lineKey = String(line);
-                const firstDie = data[lineKey]?.batches?.[0]?.die;
-
-                return (
-                  <Button
-                    key={line}
-                    active={selectedLine === lineKey}
-                    style={{ ...styles.lineButton, justifyContent: "space-between" }}
-                    onClick={() => onSelectLine(line)}
-                  >
-                    <span>{line}</span>
-                    <span style={{ fontSize: 14, opacity: 0.8 }}>{firstDie || ""}</span>
-                  </Button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+              return (
+                <Button
+                  key={line}
+                  active={selectedLine === lineKey}
+                  style={{ ...styles.lineButton, justifyContent: "space-between" }}
+                  onClick={() => onSelectLine(line)}
+                >
+                  <span>{line}</span>
+                  <span style={{ fontSize: 14, opacity: 0.8 }}>{firstDie || ""}</span>
+                </Button>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </Card>
   );
 }
 
-function ScheduleEntry({ selected, updateOperator, addBatch, updateBatch, removeBatch }) {
-  return (
-    <div>
-      <Field label="Operator" value={selected.operator} onChange={updateOperator} />
-
-      <div style={{ marginTop: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <label style={styles.label}>Batches</label>
-          <Button small onClick={addBatch}>+ Add Batch</Button>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {selected.batches.map((batch, index) => (
-            <Card key={batch.id} style={{ boxShadow: "none" }}>
-              <div style={{ ...styles.muted, fontWeight: 700, marginBottom: 8 }}>Batch {index + 1}</div>
-              <div style={styles.batchRow}>
-                <Field label="Batch" value={batch.batch} onChange={(value) => updateBatch(batch.id, "batch", value)} />
-                <Field label="Die" value={batch.die} onChange={(value) => updateBatch(batch.id, "die", value)} />
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <Field label="Description" value={batch.description} onChange={(value) => updateBatch(batch.id, "description", value)} />
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <Field label="Quantity" value={batch.quantity} onChange={(value) => updateBatch(batch.id, "quantity", value)} />
-              </div>
-              <div style={{ marginTop: 8 }}>
-                <Button small onClick={() => removeBatch(batch.id)}>Delete</Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TroubleshootEntry({ selected, draftNote, setDraftNote, draftAction, setDraftAction, draftDie, setDraftDie, addNote, deleteNote }) {
-  return (
-    <div>
-      <div style={styles.noteGrid}>
-        <Field label="Die" value={draftDie} onChange={setDraftDie} />
-        <Field label="Notes" value={draftNote} onChange={setDraftNote} textarea />
-        <Field label="Troubleshooting Steps Taken" value={draftAction} onChange={setDraftAction} textarea />
-      </div>
-
-      <div style={{ marginTop: 10 }}>
-        <Button active onClick={addNote}>+ Add Note / Troubleshooting</Button>
-      </div>
-
-      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-        {selected.notes.length > 0 ? (
-          selected.notes.map((note, index) => (
-            <Card key={note.id} style={{ boxShadow: "none" }}>
-              <div style={{ ...styles.muted, fontWeight: 700 }}>Pair {index + 1}</div>
-              <div style={{ fontSize: 14, marginTop: 6 }}><strong>Die:</strong> {note.die}</div>
-              <div style={{ fontSize: 14, marginTop: 6 }}><strong>Notes:</strong> {note.note}</div>
-              <div style={{ fontSize: 14, marginTop: 4 }}><strong>Troubleshooting Steps Taken:</strong> {note.action}</div>
-              <div style={{ marginTop: 8 }}>
-                <Button small onClick={() => deleteNote(note.id)}>Delete</Button>
-              </div>
-            </Card>
-          ))
-        ) : (
-          <div style={styles.muted}>No troubleshooting entries yet.</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MaterialsEntry({ selected, newCoexNumber, setNewCoexNumber, addMaterial, removeMaterial, updateMaterial, addCoex, updateCoex, removeCoex }) {
-  const hasAnyCoex = selected.materials.some((material) => material.coexes.length > 0);
+function MaterialFields({ material, canAddCoex, newCoexNumber, setNewCoexNumber, removeMaterial, updateMaterial, addCoex, updateCoex, removeCoex }) {
+  const isEditing = !material.confirmed;
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 8 }}>
-        <Button small onClick={addMaterial}>+ Add</Button>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {selected.materials.map((material, index) => (
-          <Card key={material.id} style={{ boxShadow: "none" }}>
-            <div style={{ ...styles.muted, fontWeight: 700, marginBottom: 6 }}>Material Row {index + 1}</div>
-
-            <div style={styles.twoColumnGrid}>
-              <Field label="Batch" value={material.batch} onChange={(value) => updateMaterial(material.id, "batch", value)} />
-              <Field label="Die" value={material.die} onChange={(value) => updateMaterial(material.id, "die", value)} />
-            </div>
-
-            <div style={{ marginTop: 8 }}>
-              <Field label="Natural" value={material.natural} onChange={(value) => updateMaterial(material.id, "natural", value)} />
-            </div>
-
-            <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
-              <Field label="Color" value={material.color} onChange={(value) => updateMaterial(material.id, "color", value)} />
-              <Field label="Regrind" value={material.regrind} onChange={(value) => updateMaterial(material.id, "regrind", value)} />
-            </div>
-
-            <div style={{ marginTop: 8 }}>
-              <Field label="Additive" value={material.additive} onChange={(value) => updateMaterial(material.id, "additive", value)} />
-            </div>
-
-            <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "end" }}>
-              {!hasAnyCoex && (
-                <>
-                  <div style={{ width: 80 }}>
-                    <Field label="Coex #" value={newCoexNumber} onChange={setNewCoexNumber} />
-                  </div>
-                  <Button small onClick={() => addCoex(material.id)}>+ Add Coex</Button>
-                </>
-              )}
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 10 }}>
+      {isEditing ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ display: "flex", gap: 6 }}>
               <Button small onClick={() => removeMaterial(material.id)}>Delete</Button>
+              <Button small active onClick={() => updateMaterial(material.id, "confirmed", true)}>Confirm</Button>
             </div>
+          </div>
+
+          <MaterialMixFields material={material} updateMaterial={updateMaterial} />
+
+          <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "end", flexWrap: "wrap" }}>
+            {canAddCoex && (
+              <>
+                <div style={{ width: 80 }}>
+                  <Field label="Coex #" value={newCoexNumber} onChange={setNewCoexNumber} />
+                </div>
+                <Button small onClick={() => addCoex(material.id)}>+ Add Coex</Button>
+              </>
+            )}
+          </div>
+
+          {material.coexes.map((coex) => (
+            <div key={coex.id} style={{ borderLeft: "3px solid #94a3b8", paddingLeft: 8, marginTop: 10 }}>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>Coex{String(coex.number).padStart(2, "0")}</div>
+              <Field label="Natural" value={coex.natural} onChange={(value) => updateCoex(material.id, coex.id, "natural", value)} />
+              <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
+                <Field label="Color" value={coex.color} onChange={(value) => updateCoex(material.id, coex.id, "color", value)} />
+                <Field label="Regrind" value={coex.regrind} onChange={(value) => updateCoex(material.id, coex.id, "regrind", value)} />
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Field label="Additive" value={coex.additive} onChange={(value) => updateCoex(material.id, coex.id, "additive", value)} />
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Button small onClick={() => removeCoex(material.id, coex.id)}>Delete Coex</Button>
+              </div>
+            </div>
+          ))}
+        </>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "start" }}>
+          <div>
+            <MaterialMixDisplay material={material} />
 
             {material.coexes.map((coex) => (
               <div key={coex.id} style={{ borderLeft: "3px solid #94a3b8", paddingLeft: 8, marginTop: 10 }}>
                 <div style={{ fontWeight: 800, marginBottom: 6 }}>Coex{String(coex.number).padStart(2, "0")}</div>
-                <div style={{ marginTop: 8 }}>
-                  <Field label="Natural" value={coex.natural} onChange={(value) => updateCoex(material.id, coex.id, "natural", value)} />
-                </div>
-                <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
-                  <Field label="Color" value={coex.color} onChange={(value) => updateCoex(material.id, coex.id, "color", value)} />
-                  <Field label="Regrind" value={coex.regrind} onChange={(value) => updateCoex(material.id, coex.id, "regrind", value)} />
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <Field label="Additive" value={coex.additive} onChange={(value) => updateCoex(material.id, coex.id, "additive", value)} />
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <Button small onClick={() => removeCoex(material.id, coex.id)}>Delete Coex</Button>
-                </div>
+                <DisplayGrid>
+                  <DisplayValue label="Natural" value={coex.natural} />
+                  <DisplayValue label="Color" value={coex.color} />
+                  <DisplayValue label="Regrind" value={coex.regrind} />
+                  <DisplayValue label="Additive" value={coex.additive} />
+                </DisplayGrid>
               </div>
             ))}
-          </Card>
-        ))}
-      </div>
+          </div>
+          <Button small onClick={() => updateMaterial(material.id, "confirmed", false)}>Edit</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TroubleshootFields({ note, updateNote, deleteNote }) {
+  const isEditing = !note.confirmed;
+
+  return (
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 10 }}>
+      {isEditing ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              <Button small onClick={() => deleteNote(note.id)}>Delete</Button>
+              <Button small active onClick={() => updateNote(note.id, "confirmed", true)}>Confirm</Button>
+            </div>
+          </div>
+
+          <div style={styles.noteGrid}>
+            <Field label="Issue" value={note.note} onChange={(value) => updateNote(note.id, "note", value)} textarea />
+            <Field label="Troubleshooting Action" value={note.action} onChange={(value) => updateNote(note.id, "action", value)} textarea />
+            <Field label="Result" value={note.result} onChange={(value) => updateNote(note.id, "result", value)} textarea />
+          </div>
+        </>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "start" }}>
+          <DisplayGrid>
+            <DisplayValue label="Issue" value={note.note} wide />
+            <DisplayValue label="Troubleshooting Action" value={note.action} wide />
+            <DisplayValue label="Result" value={note.result} wide />
+          </DisplayGrid>
+          <Button small onClick={() => updateNote(note.id, "confirmed", false)}>Edit</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MaterialDisplay({ material }) {
+  return (
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 10 }}>
+      <MaterialMixDisplay material={material} />
+
+      {material.coexes.map((coex) => (
+        <div key={coex.id} style={{ borderLeft: "3px solid #94a3b8", paddingLeft: 8, marginTop: 10 }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>Coex{String(coex.number).padStart(2, "0")}</div>
+          <DisplayGrid>
+            <DisplayValue label="Natural" value={coex.natural} />
+            <DisplayValue label="Color" value={coex.color} />
+            <DisplayValue label="Regrind" value={coex.regrind} />
+            <DisplayValue label="Additive" value={coex.additive} />
+          </DisplayGrid>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TroubleshootDisplay({ note }) {
+  return (
+    <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: 10 }}>
+      <DisplayGrid>
+        <DisplayValue label="Issue" value={note.note} wide />
+        <DisplayValue label="Troubleshooting Action" value={note.action} wide />
+        <DisplayValue label="Result" value={note.result} wide />
+      </DisplayGrid>
     </div>
   );
 }
 
 function EntryScreen(props) {
-  const { selectedLine, selected, entryTab, setEntryTab, moveLine } = props;
+  const {
+    selectedLine,
+    selected,
+    moveLine,
+    goHome,
+    updateOperator,
+    addBatch,
+    updateBatch,
+    removeBatch,
+    addMaterial,
+    removeMaterial,
+    updateMaterial,
+    addCoex,
+    updateCoex,
+    removeCoex,
+    newCoexNumber,
+    setNewCoexNumber,
+    addNote,
+    updateNote,
+    deleteNote,
+  } = props;
+  const hasAnyCoex = selected.materials.some((material) => material.coexes.length > 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <Card>
-        <TabButtons activeTab={entryTab} onChange={setEntryTab} />
+        <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 8 }}>
+          <Button small onClick={goHome}>
+            <Home size={16} aria-hidden="true" />
+            Home
+          </Button>
+        </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <Button small onClick={() => moveLine(1)}>Up</Button>
@@ -511,10 +643,113 @@ function EntryScreen(props) {
           <Button small onClick={() => moveLine(-1)}>Down</Button>
         </div>
 
-        {entryTab === "schedule" && <ScheduleEntry selected={selected} {...props} />}
-        {entryTab === "troubleshoot" && <TroubleshootEntry selected={selected} {...props} />}
-        {entryTab === "materials" && <MaterialsEntry selected={selected} {...props} />}
+        <Field label="Operator" value={selected.operator} onChange={updateOperator} />
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+          <label style={styles.label}>Batches</label>
+          <Button small onClick={addBatch}>+ Add Batch</Button>
+        </div>
       </Card>
+
+      {selected.batches.map((batch, index) => {
+        const batchMaterials = selected.materials.filter((material) => material.batchId === batch.id || (!material.batchId && index === 0 && hasMaterialContent(material)));
+        const batchNotes = selected.notes.filter((note) => note.batchId === batch.id || (!note.batchId && index === 0 && [note.note, note.action, note.result, note.die].some(hasText)));
+        const isEditing = !batch.confirmed;
+
+        return (
+          <Card key={batch.id}>
+            {isEditing && (
+              <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Button small onClick={() => removeBatch(batch.id)}>Delete</Button>
+                  <Button small active onClick={() => updateBatch(batch.id, "confirmed", true)}>Confirm</Button>
+                </div>
+              </div>
+            )}
+
+            {isEditing ? (
+              <>
+                <div style={styles.batchRow}>
+                  <Field label="Batch" value={batch.batch} onChange={(value) => updateBatch(batch.id, "batch", value)} />
+                  <Field label="Die" value={batch.die} onChange={(value) => updateBatch(batch.id, "die", value)} />
+                </div>
+
+                <div style={{ marginTop: 10 }}>
+                  <Field label="Description" value={batch.description} onChange={(value) => updateBatch(batch.id, "description", value)} />
+                </div>
+
+                <div style={{ marginTop: 10 }}>
+                  <Field label="Quantity" value={batch.quantity} onChange={(value) => updateBatch(batch.id, "quantity", value)} />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+                  <Button small onClick={() => addMaterial(batch.id, batch)}>+ Add Materials</Button>
+                  <Button small onClick={() => addNote(batch.id, batch)}>+ Add Troubleshoot</Button>
+                </div>
+
+                {batchMaterials.length > 0 && (
+                  <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                    {batchMaterials.map((material) => (
+                      <MaterialFields
+                        key={material.id}
+                        material={material}
+                        canAddCoex={!hasAnyCoex}
+                        newCoexNumber={newCoexNumber}
+                        setNewCoexNumber={setNewCoexNumber}
+                        removeMaterial={removeMaterial}
+                        updateMaterial={updateMaterial}
+                        addCoex={addCoex}
+                        updateCoex={updateCoex}
+                        removeCoex={removeCoex}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {batchNotes.length > 0 && (
+                  <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                    {batchNotes.map((note) => (
+                      <TroubleshootFields key={note.id} note={note} updateNote={updateNote} deleteNote={deleteNote} />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "start" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "start" }}>
+                    <div style={{ display: "grid", gap: 10 }}>
+                      <DisplayValue label="Batch" value={batch.batch} />
+                      <DisplayValue label="Die" value={batch.die} />
+                    </div>
+                    <div style={{ display: "grid", gap: 10 }}>
+                      <DisplayValue label="Description" value={batch.description} />
+                      <DisplayValue label="Quantity" value={batch.quantity} />
+                    </div>
+                  </div>
+                  <Button small onClick={() => updateBatch(batch.id, "confirmed", false)}>Edit</Button>
+                </div>
+
+                {batchMaterials.length > 0 && (
+                  <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                    {batchMaterials.map((material) => (
+                      <MaterialDisplay key={material.id} material={material} />
+                    ))}
+                  </div>
+                )}
+
+                {batchNotes.length > 0 && (
+                  <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                    {batchNotes.map((note) => (
+                      <TroubleshootDisplay key={note.id} note={note} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -560,7 +795,7 @@ function ScheduleReport({ data, date, shift, exportReportPdf, isExporting }) {
 }
 
 function TroubleshootReport({ data, date, shift, exportReportPdf, isExporting }) {
-  const grid = { display: "grid", gridTemplateColumns: "30px 50px 1fr 2fr" };
+  const grid = { display: "grid", gridTemplateColumns: "28px 42px 1fr 1fr 1fr", columnGap: 2 };
 
   return (
     <div>
@@ -569,20 +804,26 @@ function TroubleshootReport({ data, date, shift, exportReportPdf, isExporting })
         <ReportHeader title="Troubleshoot" date={date} shift={shift} />
         <div style={styles.reportBlock}>
           <div style={{ ...grid, ...styles.reportHeadRow }}>
-            <div>Line</div><div>Die</div><div>Issue</div><div>Troubleshooting Steps Taken</div>
+            <div>Line</div><div>Die</div><div>Issue</div><div>Troubleshooting Action</div><div>Result</div>
           </div>
           {Object.entries(data).map(([line, lineData]) => {
             if (!lineData.notes.length) return null;
             const firstDie = lineData.batches?.[0]?.die || "";
+            const batchesById = new Map((lineData.batches || []).map((batch) => [batch.id, batch]));
 
-            return lineData.notes.map((note, index) => (
-              <div key={note.id} style={{ ...grid, ...styles.reportRow, marginBottom: 4 }}>
-                <div>{index === 0 ? line : ""}</div>
-                <div>{note.die || (index === 0 ? firstDie : "")}</div>
-                <div>{note.note || ""}</div>
-                <div>{note.action || ""}</div>
-              </div>
-            ));
+            return lineData.notes.map((note, index) => {
+              const linkedBatch = batchesById.get(note.batchId);
+
+              return (
+                <div key={note.id} style={{ ...grid, ...styles.reportRow, marginBottom: 4 }}>
+                  <div>{index === 0 ? line : ""}</div>
+                  <div>{linkedBatch?.die || note.die || (index === 0 ? firstDie : "")}</div>
+                  <div>{note.note || ""}</div>
+                  <div>{note.action || ""}</div>
+                  <div>{note.result || ""}</div>
+                </div>
+              );
+            });
           })}
         </div>
       </div>
@@ -641,12 +882,9 @@ export default function App() {
   const [data, setData] = useState(() => loadSavedData(todayString()));
   const [selectedLine, setSelectedLine] = useState("1");
   const [screen, setScreen] = useState("lines");
-  const [entryTab, setEntryTab] = useState("schedule");
   const [reportTab, setReportTab] = useState("schedule");
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isReportPanelOpen, setIsReportPanelOpen] = useState(false);
-  const [draftNote, setDraftNote] = useState("");
-  const [draftAction, setDraftAction] = useState("");
-  const [draftDie, setDraftDie] = useState("");
   const [newCoexNumber, setNewCoexNumber] = useState("02");
   const [touchStartX, setTouchStartX] = useState(null);
 
@@ -671,17 +909,24 @@ export default function App() {
     updateSelectedLine((lineData) => ({
       ...lineData,
       batches: lineData.batches.map((batch) => (batch.id === id ? { ...batch, [field]: value } : batch)),
+      materials: field === "batch" || field === "die" ? lineData.materials.map((material) => (material.batchId === id ? { ...material, [field]: value } : material)) : lineData.materials,
+      notes: field === "die" ? lineData.notes.map((note) => (note.batchId === id ? { ...note, die: value } : note)) : lineData.notes,
     }));
   };
 
   const removeBatch = (id) => {
     updateSelectedLine((lineData) => {
       const batches = lineData.batches.filter((batch) => batch.id !== id);
-      return { ...lineData, batches: batches.length ? batches : [createBatch()] };
+      return {
+        ...lineData,
+        batches: batches.length ? batches : [createBatch()],
+        materials: lineData.materials.filter((material) => material.batchId !== id),
+        notes: lineData.notes.filter((note) => note.batchId !== id),
+      };
     });
   };
 
-  const addMaterial = () => updateSelectedLine((lineData) => ({ ...lineData, materials: [...lineData.materials, createMaterial()] }));
+  const addMaterial = (batchId, batch) => updateSelectedLine((lineData) => ({ ...lineData, materials: [...lineData.materials, createMaterial(batchId, batch.batch, batch.die)] }));
 
   const updateMaterial = (id, field, value) => {
     updateSelectedLine((lineData) => ({
@@ -693,7 +938,7 @@ export default function App() {
   const removeMaterial = (id) => {
     updateSelectedLine((lineData) => {
       const materials = lineData.materials.filter((material) => material.id !== id);
-      return { ...lineData, materials: materials.length ? materials : [createMaterial()] };
+      return { ...lineData, materials };
     });
   };
 
@@ -727,25 +972,18 @@ export default function App() {
     }));
   };
 
-  const addNote = () => {
-    if (!hasText(draftNote) && !hasText(draftAction) && !hasText(draftDie)) return;
-
+  const addNote = (batchId, batch) => {
     updateSelectedLine((lineData) => ({
       ...lineData,
-      notes: [
-        ...lineData.notes,
-        {
-          id: makeId(),
-          note: draftNote.trim(),
-          action: draftAction.trim(),
-          die: draftDie.trim(),
-        },
-      ],
+      notes: [...lineData.notes, createNote(batchId, batch.die)],
     }));
+  };
 
-    setDraftNote("");
-    setDraftAction("");
-    setDraftDie("");
+  const updateNote = (id, field, value) => {
+    updateSelectedLine((lineData) => ({
+      ...lineData,
+      notes: lineData.notes.map((note) => (note.id === id ? { ...note, [field]: value } : note)),
+    }));
   };
 
   const deleteNote = (id) => updateSelectedLine((lineData) => ({ ...lineData, notes: lineData.notes.filter((note) => note.id !== id) }));
@@ -781,6 +1019,7 @@ export default function App() {
   const selectLine = (line) => {
     setSelectedLine(String(line));
     setScreen("entry");
+    setIsMenuOpen(false);
     setIsReportPanelOpen(false);
   };
 
@@ -799,28 +1038,41 @@ export default function App() {
     const nextScreen = SCREENS[currentIndex + direction];
     if (nextScreen) {
       setScreen(nextScreen);
+      setIsMenuOpen(false);
       setIsReportPanelOpen(false);
     }
   };
 
   const goHome = () => {
     setScreen("lines");
+    setIsMenuOpen(false);
     setIsReportPanelOpen(false);
   };
 
-  const toggleReportPanel = () => {
-    setIsReportPanelOpen((isOpen) => !isOpen);
+  const closeMenu = () => {
+    setIsMenuOpen(false);
+    setIsReportPanelOpen(false);
+  };
+
+  const toggleMenu = () => {
+    if (isMenuOpen) setIsReportPanelOpen(false);
+    setIsMenuOpen((isOpen) => !isOpen);
+  };
+
+  const openReportPanel = () => {
+    setIsReportPanelOpen(true);
   };
 
   const selectReport = (tab) => {
     setReportTab(tab);
     setScreen("report");
+    setIsMenuOpen(false);
     setIsReportPanelOpen(false);
   };
 
   const handleTouchEnd = (event) => {
     if (touchStartX == null) return;
-    if (isReportPanelOpen) {
+    if (isMenuOpen || isReportPanelOpen) {
       setTouchStartX(null);
       return;
     }
@@ -839,20 +1091,14 @@ export default function App() {
   const sharedEntryProps = {
     selectedLine,
     selected,
-    entryTab,
-    setEntryTab,
     moveLine,
+    goHome,
     updateOperator,
     addBatch,
     updateBatch,
     removeBatch,
-    draftNote,
-    setDraftNote,
-    draftAction,
-    setDraftAction,
-    draftDie,
-    setDraftDie,
     addNote,
+    updateNote,
     deleteNote,
     newCoexNumber,
     setNewCoexNumber,
@@ -875,21 +1121,31 @@ export default function App() {
   return (
     <div style={styles.page} onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)} onTouchEnd={handleTouchEnd}>
       <div style={styles.appFrame}>
+        {isMenuOpen && <button type="button" aria-label="Close menu" style={styles.menuScrim} onClick={closeMenu} />}
+        {isMenuOpen && (
+          <SidePanel
+            screen={screen}
+            reportPanelOpen={isReportPanelOpen}
+            date={date}
+            shift={shift}
+            onDateChange={changeDate}
+            onShiftChange={setShift}
+            onHomeClick={goHome}
+            onReportsClick={openReportPanel}
+            onClose={closeMenu}
+          />
+        )}
         {isReportPanelOpen && <ReportSidePanel reportTab={reportTab} onSelectReport={selectReport} onClose={() => setIsReportPanelOpen(false)} />}
-
-        <SidePanel screen={screen} reportPanelOpen={isReportPanelOpen} onHomeClick={goHome} onReportsClick={toggleReportPanel} />
 
         <div style={styles.container}>
           {screen === "lines" && (
-            <LinesScreen
-              date={date}
-              shift={shift}
-              data={data}
-              selectedLine={selectedLine}
-              onDateChange={changeDate}
-              onShiftChange={setShift}
-              onSelectLine={selectLine}
-            />
+            <>
+              <HomeHeader
+                menuOpen={isMenuOpen}
+                onMenuClick={toggleMenu}
+              />
+              <LinesScreen data={data} selectedLine={selectedLine} onSelectLine={selectLine} />
+            </>
           )}
 
           {screen === "entry" && <EntryScreen {...sharedEntryProps} />}
