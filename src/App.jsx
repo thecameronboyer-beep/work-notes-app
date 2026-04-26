@@ -63,7 +63,15 @@ const tabLabel = (tab) => (tab === "troubleshoot" ? "Troubleshoot" : tab[0].toUp
 
 const createCoex = (number = "02") => ({ id: makeId(), number, natural: "", color: "", regrind: "", additive: "" });
 const createMaterial = () => ({ id: makeId(), batch: "", die: "", natural: "", color: "", regrind: "", additive: "", coexes: [] });
-const createBatch = () => ({ id: makeId(), batch: "", die: "", description: "", quantity: "" });
+const createBatch = () => ({
+  id: makeId(),
+  batch: "",
+  die: "",
+  description: "",
+  quantity: "",
+  materials: [],
+  notes: []
+});
 const createLineData = () => ({ operator: "", batches: [createBatch()], materials: [createMaterial()], notes: [] });
 const createAllLineData = () => Object.fromEntries(LINE_NUMBERS.map((line) => [String(line), createLineData()]));
 
@@ -122,6 +130,8 @@ const normalizeBatches = (lineData) => {
     die: batch?.die || "",
     description: batch?.description || "",
     quantity: batch?.quantity || "",
+    materials: Array.isArray(batch?.materials) ? batch.materials : [],
+    notes: Array.isArray(batch?.notes) ? batch.notes : [],
   }));
 };
 
@@ -288,7 +298,10 @@ function ScheduleEntry({
   handleDeleteBatch,
   confirmDeleteBatchId,
   addBatchTroubleshoot,
+  addBatchMaterial,
   updateTroubleshootNote,
+  updateMaterial,
+  removeBatchMaterial,
   deleteNote
 }) {
   const [batchesOpen, setBatchesOpen] = useState(true);
@@ -371,6 +384,22 @@ function ScheduleEntry({
                         >
                           Troubleshoot
                         </button>
+                        <button
+  type="button"
+  onClick={() => {
+    addBatchMaterial(batch.id);
+    setBatchMenuOpenId(null);
+  }}
+  style={{
+    ...styles.button,
+    ...styles.smallButton,
+    width: "100%",
+    justifyContent: "flex-start",
+    background: "#fff"
+  }}
+>
+  Materials
+</button>
                       </div>
                     )}
                   </div>
@@ -388,15 +417,34 @@ function ScheduleEntry({
                 <div style={{ marginTop: 10 }}>
                   <Field label="Quantity" value={batch.quantity} onChange={(value) => updateBatch(batch.id, "quantity", value)} />
                 </div>
+{(batch.materials || []).map((material) => (
+  <div key={material.id} style={{ marginTop: 10, padding: 10, border: "1px solid #cbd5e1", borderRadius: 12, background: "#f8fafc" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+      <Button small onClick={() => removeBatchMaterial(material.id)}>Delete</Button>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>Materials</div>
+    </div>
 
-                {selected.notes
-                  .filter((note) => note.batchId === batch.id)
-                  .map((note) => (
+
+    <div style={{ marginTop: 8 }}>
+      <Field label="Natural" value={material.natural || ""} onChange={(value) => updateMaterial(material.id, "natural", value)} />
+    </div>
+
+    <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
+      <Field label="Color" value={material.color || ""} onChange={(value) => updateMaterial(material.id, "color", value)} />
+      <Field label="Regrind" value={material.regrind || ""} onChange={(value) => updateMaterial(material.id, "regrind", value)} />
+    </div>
+
+    <div style={{ marginTop: 8 }}>
+      <Field label="Additive" value={material.additive || ""} onChange={(value) => updateMaterial(material.id, "additive", value)} />
+    </div>
+  </div>
+))}
+{(batch.notes || []).map((note) => (
                     <div key={note.id} style={{ marginTop: 10, padding: 10, border: "1px solid #cbd5e1", borderRadius: 12, background: "#f8fafc" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>Troubleshoot</div>
-                        <Button small onClick={() => deleteNote(note.id)}>Delete</Button>
-                      </div>
+  <Button small onClick={() => deleteNote(note.id)}>Delete</Button>
+  <div style={{ fontWeight: 700, fontSize: 13 }}>Troubleshoot</div>
+</div>
 
                       <Field label="Issue" value={note.note} onChange={(value) => updateTroubleshootNote(note.id, "note", value)} textarea />
 
@@ -461,7 +509,7 @@ function MaterialsEntry({ selected, newCoexNumber, setNewCoexNumber, addMaterial
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {selected.materials.map((material, index) => (
+        {selected.materials.filter((material) => !material.batchId).map((material, index) => (
           <Card key={material.id} style={{ boxShadow: "none" }}>
             <div style={{ ...styles.muted, fontWeight: 700, marginBottom: 6 }}>Material Row {index + 1}</div>
 
@@ -763,7 +811,6 @@ function MaterialsReport({ data, date, shift, exportReportPdf, isExporting }) {
 function ReportScreen({ reportTab, setReportTab, ...props }) {
   return (
     <Card>
-      <TabButtons activeTab={reportTab} onChange={setReportTab} />
       {reportTab === "schedule" && <ScheduleReport {...props} />}
       {reportTab === "troubleshoot" && <TroubleshootReport {...props} />}
       {reportTab === "materials" && <MaterialsReport {...props} />}
@@ -786,6 +833,7 @@ export default function App() {
   const [newCoexNumber, setNewCoexNumber] = useState("02");
   const [touchStartX, setTouchStartX] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuMode, setMenuMode] = useState("main");
   const [confirmDeleteBatchId, setConfirmDeleteBatchId] = useState(null);
 
   useEffect(() => {
@@ -846,25 +894,54 @@ const handleDeleteBatch = (id) => {
 
 const addBatchTroubleshoot = (batchId) => {
   updateSelectedLine((lineData) => {
-    const batch = lineData.batches.find((b) => b.id === batchId);
-
     return {
       ...lineData,
-      notes: [
-        ...lineData.notes,
-        {
-          id: makeId(),
-          batchId,
-          note: "",
-          action: "",
-          result: "",
-          die: batch?.die || ""
-        }
-      ]
+      batches: lineData.batches.map((batch) => {
+        if (batch.id !== batchId) return batch;
+
+        return {
+          ...batch,
+          notes: [
+            ...batch.notes,
+            {
+              id: makeId(),
+              note: "",
+              action: "",
+              result: "",
+              die: batch.die || ""
+            }
+          ]
+        };
+      })
     };
   });
 };
+const addBatchMaterial = (batchId) => {
+  updateSelectedLine((lineData) => {
+    return {
+      ...lineData,
+      batches: lineData.batches.map((batch) => {
+        if (batch.id !== batchId) return batch;
 
+        return {
+          ...batch,
+          materials: [
+            ...batch.materials,
+            {
+              id: makeId(),
+              batch: batch.batch || "",
+              die: batch.die || "",
+              natural: "",
+              color: "",
+              regrind: "",
+              additive: ""
+            }
+          ]
+        };
+      })
+    };
+  });
+};
 const updateTroubleshootNote = (id, field, value) => {
   updateSelectedLine((lineData) => ({
     ...lineData,
@@ -889,7 +966,15 @@ const updateTroubleshootNote = (id, field, value) => {
       return { ...lineData, materials: materials.length ? materials : [createMaterial()] };
     });
   };
-
+const removeBatchMaterial = (id) => {
+  updateSelectedLine((lineData) => ({
+    ...lineData,
+    batches: lineData.batches.map((batch) => ({
+      ...batch,
+      materials: (batch.materials || []).filter((material) => material.id !== id),
+    })),
+  }));
+};
   const addCoex = (materialId) => {
     const cleanNumber = String(newCoexNumber || "").trim().replace(/^Coex/i, "");
     if (!cleanNumber) return;
@@ -941,7 +1026,16 @@ const updateTroubleshootNote = (id, field, value) => {
     setDraftDie("");
   };
 
-  const deleteNote = (id) => updateSelectedLine((lineData) => ({ ...lineData, notes: lineData.notes.filter((note) => note.id !== id) }));
+  const deleteNote = (id) => {
+  updateSelectedLine((lineData) => ({
+    ...lineData,
+    notes: lineData.notes.filter((note) => note.id !== id),
+    batches: lineData.batches.map((batch) => ({
+      ...batch,
+      notes: (batch.notes || []).filter((note) => note.id !== id),
+    })),
+  }));
+};
 
   const exportReportPdf = async () => {
     const reportElement = document.getElementById("print-area");
@@ -1012,7 +1106,7 @@ const updateTroubleshootNote = (id, field, value) => {
     updateBatch,
     removeBatch,
     handleDeleteBatch,
-confirmDeleteBatchId,
+    confirmDeleteBatchId,
     draftNote,
     setDraftNote,
     draftAction,
@@ -1022,11 +1116,16 @@ confirmDeleteBatchId,
     addNote,
     deleteNote,
     addBatchTroubleshoot,
-updateTroubleshootNote,
+    addBatchMaterial,
+    updateTroubleshootNote,
+    updateMaterial,
+    removeBatchMaterial,
+    deleteNote,
     newCoexNumber,
     setNewCoexNumber,
     addMaterial,
     removeMaterial,
+    removeBatchMaterial,
     updateMaterial,
     addCoex,
     updateCoex,
@@ -1067,7 +1166,7 @@ updateTroubleshootNote,
 </div>
       {/* Menu Button */}
 <button
-  onClick={() => setMenuOpen(true)}
+  onClick={() => setMenuOpen(!menuOpen)}
   style={{
     ...styles.button,
     ...styles.smallButton,
@@ -1095,14 +1194,7 @@ updateTroubleshootNote,
 
         {screen === "report" && <ReportScreen reportTab={reportTab} setReportTab={setReportTab} {...sharedReportProps} />}
 
-        <div style={styles.bottomNav}>
-          {SCREENS.filter(s => s !== "report" && s !== "lines").map((screenName) => (
-            <Button key={screenName} active={screen === screenName} small onClick={() => setScreen(screenName)}>
-              {screenName === "lines" ? "Lines" : screenName === "entry" ? "Entry" : "Reports"}
-            </Button>
-          ))}
-        </div>
-      </div>
+</div>
       {/* Overlay + Slide Panel */}
 <>
   <div
@@ -1134,13 +1226,8 @@ updateTroubleshootNote,
       transition: "transform 0.25s ease"
     }}
   >
-    <button
-      onClick={() => setMenuOpen(false)}
-      style={{ ...styles.button, ...styles.smallButton, marginBottom: 10 }}
-    >
-      Close
-    </button>
-
+{menuMode === "main" && (
+  <>
     <label style={styles.label}>Date</label>
     <input
       type="date"
@@ -1151,7 +1238,7 @@ updateTroubleshootNote,
 
     <label style={{ ...styles.label, marginTop: 12 }}>Shift</label>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-     {SHIFT_OPTIONS.map((s) => (
+      {SHIFT_OPTIONS.map((s) => (
         <button
           key={s}
           onClick={() => setShift(s)}
@@ -1166,22 +1253,70 @@ updateTroubleshootNote,
         </button>
       ))}
     </div>
+
     <div style={{ marginTop: 20 }}>
-  <button
-    onClick={() => {
-      setScreen("report");
-      setMenuOpen(false);
-    }}
-    style={{
-      ...styles.button,
-      width: "100%",
-      justifyContent: "center"
-    }}
-  >
-    Reports
-  </button>
+      <button
+        onClick={() => setMenuMode("reports")}
+        style={{
+          ...styles.button,
+          width: "100%",
+          justifyContent: "center"
+        }}
+      >
+        Reports
+      </button>
+    </div>
+  </>
+)}
+
+{menuMode === "reports" && (
+  <>
+    <div style={{ marginBottom: 12 }}>
+      <button
+        onClick={() => setMenuMode("main")}
+        style={{ ...styles.button, ...styles.smallButton }}
+      >
+        ← Back
+      </button>
+    </div>
+
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <button
+        onClick={() => {
+          setReportTab("schedule");
+          setScreen("report");
+          setMenuOpen(false);
+        }}
+        style={styles.button}
+      >
+        Schedule
+      </button>
+
+      <button
+        onClick={() => {
+          setReportTab("materials");
+          setScreen("report");
+          setMenuOpen(false);
+        }}
+        style={styles.button}
+      >
+        Materials
+      </button>
+
+      <button
+        onClick={() => {
+          setReportTab("troubleshoot");
+          setScreen("report");
+          setMenuOpen(false);
+        }}
+        style={styles.button}
+      >
+        Troubleshoot
+      </button>
+    </div>
+  </>
+)}
 </div>
-  </div>
 </>
     </div>
   );
