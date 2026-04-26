@@ -49,7 +49,7 @@ const styles = {
   lineButton: { minHeight: 48, fontSize: 18 },
   shiftGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
   twoColumnGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
-  batchRow: { display: "grid", gridTemplateColumns: "30% 1fr", gap: 10, alignItems: "end" },
+  batchRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "end" },
   noteGrid: { display: "grid", gridTemplateColumns: "1fr", gap: 10 },
   reportShell: { width: "100%", overflowX: "hidden" },
   reportHeader: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid #cbd5e1" },
@@ -96,7 +96,18 @@ const withPercent = (value, percent) => {
 };
 const tabLabel = (tab) => (tab === "troubleshoot" ? "Troubleshoot" : tab[0].toUpperCase() + tab.slice(1));
 
-const createCoex = (number = "02") => ({ id: makeId(), number, natural: "", color: "", regrind: "", additive: "" });
+const createCoex = (number = "02") => ({
+  id: makeId(),
+  number,
+  natural: "",
+  naturalPercent: "",
+  color: "",
+  colorPercent: "",
+  regrind: "",
+  regrindPercent: "",
+  additive: "",
+  additivePercent: "",
+});
 const createMaterial = (batchId = "", batch = "", die = "") => ({
   id: makeId(),
   batchId,
@@ -124,9 +135,13 @@ const normalizeCoexes = (coexes) => {
     id: coex?.id || makeId(),
     number: coex?.number || index + 1,
     natural: coex?.natural || "",
+    naturalPercent: coex?.naturalPercent || "",
     color: coex?.color || "",
+    colorPercent: coex?.colorPercent || "",
     regrind: coex?.regrind || "",
+    regrindPercent: coex?.regrindPercent || "",
     additive: coex?.additive || "",
+    additivePercent: coex?.additivePercent || "",
   }));
 };
 
@@ -145,9 +160,13 @@ const normalizeMaterials = (materials) => {
             id: material.id || makeId(),
             number: material.coexNumber || 1,
             natural: material.natural || "",
+            naturalPercent: material.naturalPercent || "",
             color: material.color || "",
+            colorPercent: material.colorPercent || "",
             regrind: material.regrind || "",
+            regrindPercent: material.regrindPercent || "",
             additive: material.additive || "",
+            additivePercent: material.additivePercent || "",
           },
         ],
       };
@@ -256,10 +275,10 @@ const getMaterialRowsForReport = (line, lineData) => {
         label: `Coex${String(coex.number).padStart(2, "0")}`,
         die: "",
         batch: "",
-        natural: coex.natural,
-        color: coex.color,
-        regrind: coex.regrind,
-        additive: coex.additive,
+        natural: withPercent(coex.natural, coex.naturalPercent),
+        color: withPercent(coex.color, coex.colorPercent),
+        regrind: withPercent(coex.regrind, coex.regrindPercent),
+        additive: withPercent(coex.additive, coex.additivePercent),
       });
     });
   });
@@ -340,6 +359,28 @@ function MaterialMixDisplay({ material }) {
       <DisplayValue label="Regrind" value={withPercent(material.regrind, material.regrindPercent)} />
       <DisplayValue label="Additive" value={withPercent(material.additive, material.additivePercent)} />
     </DisplayGrid>
+  );
+}
+
+function CoexMixFields({ coex, onChange }) {
+  const compactGrid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 54px minmax(0, 1fr) 54px", gap: 6, alignItems: "end" };
+
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={compactGrid}>
+        <Field label="Natural" value={coex.natural} onChange={(value) => onChange("natural", value)} />
+        <Field label="%" value={coex.naturalPercent} onChange={(value) => onChange("naturalPercent", value)} />
+        <Field label="Color" value={coex.color} onChange={(value) => onChange("color", value)} />
+        <Field label="%" value={coex.colorPercent} onChange={(value) => onChange("colorPercent", value)} />
+      </div>
+
+      <div style={compactGrid}>
+        <Field label="Regrind" value={coex.regrind} onChange={(value) => onChange("regrind", value)} />
+        <Field label="%" value={coex.regrindPercent} onChange={(value) => onChange("regrindPercent", value)} />
+        <Field label="Additive" value={coex.additive} onChange={(value) => onChange("additive", value)} />
+        <Field label="%" value={coex.additivePercent} onChange={(value) => onChange("additivePercent", value)} />
+      </div>
+    </div>
   );
 }
 
@@ -499,14 +540,7 @@ function MaterialFields({ material, canAddCoex, newCoexNumber, setNewCoexNumber,
           {material.coexes.map((coex) => (
             <div key={coex.id} style={{ borderLeft: "3px solid #94a3b8", paddingLeft: 8, marginTop: 10 }}>
               <div style={{ fontWeight: 800, marginBottom: 6 }}>Coex{String(coex.number).padStart(2, "0")}</div>
-              <Field label="Natural" value={coex.natural} onChange={(value) => updateCoex(material.id, coex.id, "natural", value)} />
-              <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
-                <Field label="Color" value={coex.color} onChange={(value) => updateCoex(material.id, coex.id, "color", value)} />
-                <Field label="Regrind" value={coex.regrind} onChange={(value) => updateCoex(material.id, coex.id, "regrind", value)} />
-              </div>
-              <div style={{ marginTop: 8 }}>
-                <Field label="Additive" value={coex.additive} onChange={(value) => updateCoex(material.id, coex.id, "additive", value)} />
-              </div>
+              <CoexMixFields coex={coex} onChange={(field, value) => updateCoex(material.id, coex.id, field, value)} />
               <div style={{ marginTop: 8 }}>
                 <Button small onClick={() => removeCoex(material.id, coex.id)}>Delete Coex</Button>
               </div>
@@ -521,12 +555,7 @@ function MaterialFields({ material, canAddCoex, newCoexNumber, setNewCoexNumber,
             {material.coexes.map((coex) => (
               <div key={coex.id} style={{ borderLeft: "3px solid #94a3b8", paddingLeft: 8, marginTop: 10 }}>
                 <div style={{ fontWeight: 800, marginBottom: 6 }}>Coex{String(coex.number).padStart(2, "0")}</div>
-                <DisplayGrid>
-                  <DisplayValue label="Natural" value={coex.natural} />
-                  <DisplayValue label="Color" value={coex.color} />
-                  <DisplayValue label="Regrind" value={coex.regrind} />
-                  <DisplayValue label="Additive" value={coex.additive} />
-                </DisplayGrid>
+                <MaterialMixDisplay material={coex} />
               </div>
             ))}
           </div>
@@ -579,12 +608,7 @@ function MaterialDisplay({ material }) {
       {material.coexes.map((coex) => (
         <div key={coex.id} style={{ borderLeft: "3px solid #94a3b8", paddingLeft: 8, marginTop: 10 }}>
           <div style={{ fontWeight: 800, marginBottom: 6 }}>Coex{String(coex.number).padStart(2, "0")}</div>
-          <DisplayGrid>
-            <DisplayValue label="Natural" value={coex.natural} />
-            <DisplayValue label="Color" value={coex.color} />
-            <DisplayValue label="Regrind" value={coex.regrind} />
-            <DisplayValue label="Additive" value={coex.additive} />
-          </DisplayGrid>
+          <MaterialMixDisplay material={coex} />
         </div>
       ))}
     </div>
@@ -607,7 +631,6 @@ function EntryScreen(props) {
   const {
     selectedLine,
     selected,
-    moveLine,
     goHome,
     updateOperator,
     addBatch,
@@ -629,26 +652,21 @@ function EntryScreen(props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <Card>
-        <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 8 }}>
+      <Card style={{ position: "sticky", top: 0, zIndex: 25 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", gap: 8, alignItems: "center" }}>
           <Button small onClick={goHome}>
             <Home size={16} aria-hidden="true" />
             Home
           </Button>
-        </div>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <Button small onClick={() => moveLine(1)}>Up</Button>
-          <div style={{ fontWeight: 800, fontSize: 18 }}>Line {selectedLine}</div>
-          <Button small onClick={() => moveLine(-1)}>Down</Button>
-        </div>
+          <div style={{ fontWeight: 800, fontSize: 18, textAlign: "center" }}>Line {selectedLine}</div>
 
-        <Field label="Operator" value={selected.operator} onChange={updateOperator} />
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-          <label style={styles.label}>Batches</label>
           <Button small onClick={addBatch}>+ Add Batch</Button>
         </div>
+      </Card>
+
+      <Card>
+        <Field label="Operator" value={selected.operator} onChange={updateOperator} />
       </Card>
 
       {selected.batches.map((batch, index) => {
@@ -674,11 +692,8 @@ function EntryScreen(props) {
                   <Field label="Die" value={batch.die} onChange={(value) => updateBatch(batch.id, "die", value)} />
                 </div>
 
-                <div style={{ marginTop: 10 }}>
+                <div style={{ ...styles.twoColumnGrid, marginTop: 10 }}>
                   <Field label="Description" value={batch.description} onChange={(value) => updateBatch(batch.id, "description", value)} />
-                </div>
-
-                <div style={{ marginTop: 10 }}>
                   <Field label="Quantity" value={batch.quantity} onChange={(value) => updateBatch(batch.id, "quantity", value)} />
                 </div>
 
@@ -1081,8 +1096,13 @@ export default function App() {
     const deltaX = touchStartX - endX;
 
     if (Math.abs(deltaX) > 60) {
-      if (deltaX > 0) moveScreen(1);
-      if (deltaX < 0) moveScreen(-1);
+      if (screen === "entry") {
+        if (deltaX > 0) moveLine(1);
+        if (deltaX < 0) moveLine(-1);
+      } else {
+        if (deltaX > 0) moveScreen(1);
+        if (deltaX < 0) moveScreen(-1);
+      }
     }
 
     setTouchStartX(null);
@@ -1091,7 +1111,6 @@ export default function App() {
   const sharedEntryProps = {
     selectedLine,
     selected,
-    moveLine,
     goHome,
     updateOperator,
     addBatch,
