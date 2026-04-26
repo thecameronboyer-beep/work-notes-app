@@ -1,47 +1,44 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Download,
+  FileText,
+  Home,
+  Lock,
+  Menu,
+  Package,
+  Plus,
+  Printer,
+  Trash2,
+  Unlock,
+  X,
+  Wrench,
+} from "lucide-react";
+import "./App.css";
 
 const LINE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 25, 26, 27, 28, 29, 30, 31];
 const SHIFT_OPTIONS = ["A", "B", "C"];
-const TABS = ["schedule", "materials"];
-const SCREENS = ["lines", "entry", "report"];
-
+const ENTRY_TABS = [
+  { id: "schedule", label: "Schedule", icon: ClipboardList },
+  { id: "materials", label: "Materials", icon: Package },
+  { id: "issues", label: "Issues", icon: Wrench },
+];
+const REPORT_TABS = [
+  { id: "line", label: "Line report", icon: FileText },
+  { id: "schedule", label: "Daily schedule", icon: ClipboardList },
+  { id: "materials", label: "Daily materials", icon: Package },
+  { id: "issues", label: "Issues", icon: Wrench },
+];
 const LINE_GROUPS = [
   { name: "Flex", lines: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
   { name: "Custom", lines: [10, 11, 12, 13, 14, 15, 16, 17, 18] },
   { name: "Fence", lines: [24, 25, 26, 27, 28, 29, 30, 31] },
 ];
-
-const styles = {
-  page: { minHeight: "100vh", background: "#f1f5f9", color: "#0f172a", padding: 10, fontFamily: "Arial, sans-serif", boxSizing: "border-box" },
-  container: { width: "100%", maxWidth: 430, margin: "0 auto" },
-  card: { background: "#fff", border: "1px solid #cbd5e1", borderRadius: 16, boxShadow: "0 1px 3px rgba(0,0,0,.08)" },
-  cardBody: { padding: 12 },
-  label: { display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 },
-  input: { width: "100%", color: "#0f172a", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 12, fontSize: 14, background: "#fff" },
-  textarea: { width: "100%", color: "#0f172a", boxSizing: "border-box", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 12, fontSize: 14, minHeight: 74, resize: "vertical", background: "#fff" },
-  button: { border: "1px solid #cbd5e1", background: "#fff", color: "#0f172a", borderRadius: 14, padding: "10px 12px", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 42 },
-  smallButton: { padding: "7px 9px", fontSize: 12, minHeight: 36 },
-  buttonPrimary: { background: "#0f172a", color: "#fff", border: "1px solid #0f172a" },
-  tabGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 10, position: "sticky", top: 0, zIndex: 20, background: "#fff", paddingBottom: 8, borderBottom: "1px solid #e2e8f0" },
-  tabButton: { padding: "7px 3px", fontSize: 11, minHeight: 38 },
-  lineGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 },
-  lineColumn: { display: "flex", flexDirection: "column", gap: 6 },
-  lineGroupTitle: { fontWeight: 800, textAlign: "left", fontSize: 14, marginBottom: 2 },
-  lineButton: { minHeight: 48, fontSize: 18 },
-  shiftGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
-  twoColumnGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
-  batchRow: { display: "grid", gridTemplateColumns: "30% 1fr", gap: 10, alignItems: "end" },
-  noteGrid: { display: "grid", gridTemplateColumns: "1fr", gap: 10 },
-  reportShell: { width: "100%", overflowX: "hidden" },
-  reportHeader: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid #cbd5e1" },
-  reportBlock: { border: "1px solid #cbd5e1", borderRadius: 10, padding: 6, marginBottom: 8 },
-  reportHeadRow: { fontSize: 10, fontWeight: 700, borderBottom: "1px solid #cbd5e1", paddingBottom: 3, marginBottom: 5, lineHeight: "12px" },
-  reportRow: { fontSize: 10, lineHeight: "12px", alignItems: "start", wordBreak: "break-word" },
-  muted: { fontSize: 13, color: "#64748b" },
-  bottomNav: { position: "sticky", bottom: 0, background: "#f1f5f9", paddingTop: 8, marginTop: 10, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
-};
 
 const makeId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -49,30 +46,41 @@ const makeId = () => {
 };
 
 const todayString = () => new Date().toISOString().slice(0, 10);
+const hasText = (value) => String(value || "").trim().length > 0;
+const sanitizeFilename = (value) => String(value || "report").replace(/[^a-z0-9-_]+/gi, "_");
 
 const formatDisplayDate = (iso) => {
   if (!iso) return "";
   const [year, month, day] = iso.split("-");
   if (!year || !month || !day) return iso;
-  return `${Number(month)}-${Number(day)}-${year}`;
+  return `${Number(month)}/${Number(day)}/${year}`;
 };
-
-const sanitizeFilename = (value) => String(value || "report").replace(/[^a-z0-9-_]+/gi, "_");
-const hasText = (value) => String(value || "").trim().length > 0;
-const tabLabel = (tab) => (tab === "troubleshoot" ? "Troubleshoot" : tab[0].toUpperCase() + tab.slice(1));
 
 const createCoex = (number = "02") => ({ id: makeId(), number, natural: "", color: "", regrind: "", additive: "" });
 const createMaterial = () => ({ id: makeId(), batch: "", die: "", natural: "", color: "", regrind: "", additive: "", coexes: [] });
+const createNote = (seed = {}) => ({
+  id: seed.id || makeId(),
+  die: seed.die || "",
+  note: seed.note || seed.issue || "",
+  action: seed.action || "",
+  result: seed.result || "",
+});
 const createBatch = () => ({
   id: makeId(),
   batch: "",
   die: "",
   description: "",
   quantity: "",
+  locked: false,
   materials: [],
-  notes: []
+  notes: [],
 });
-const createLineData = () => ({ operator: "", batches: [createBatch()], materials: [createMaterial()], notes: [] });
+const createLineData = () => ({
+  operator: "",
+  batches: [createBatch()],
+  materials: [createMaterial()],
+  notes: [],
+});
 const createAllLineData = () => Object.fromEntries(LINE_NUMBERS.map((line) => [String(line), createLineData()]));
 
 const normalizeCoexes = (coexes) => {
@@ -121,6 +129,11 @@ const normalizeMaterials = (materials) => {
   });
 };
 
+const normalizeNotes = (notes) => {
+  if (!Array.isArray(notes)) return [];
+  return notes.map((note) => createNote(note));
+};
+
 const normalizeBatches = (lineData) => {
   if (!Array.isArray(lineData?.batches) || lineData.batches.length === 0) return [createBatch()];
 
@@ -130,19 +143,9 @@ const normalizeBatches = (lineData) => {
     die: batch?.die || "",
     description: batch?.description || "",
     quantity: batch?.quantity || "",
-    materials: Array.isArray(batch?.materials) ? batch.materials : [],
-    notes: Array.isArray(batch?.notes) ? batch.notes : [],
-  }));
-};
-
-const normalizeNotes = (notes) => {
-  if (!Array.isArray(notes)) return [];
-
-  return notes.map((note) => ({
-    id: note?.id || makeId(),
-    note: note?.note || note?.issue || "",
-    action: note?.action || "",
-    die: note?.die || "",
+    locked: Boolean(batch?.locked),
+    materials: normalizeMaterials(batch?.materials).filter((material) => material.batch || material.die || material.natural || material.color || material.regrind || material.additive || material.coexes.length),
+    notes: normalizeNotes(batch?.notes),
   }));
 };
 
@@ -162,19 +165,69 @@ const normalizeSavedData = (savedData) => {
   return base;
 };
 
-const getFilledBatches = (lineData) => lineData.batches.filter((batch) => hasText(batch.batch) || hasText(batch.die) || hasText(batch.description) || hasText(batch.quantity));
+const loadDataForDate = (date) => {
+  if (typeof localStorage === "undefined") return createAllLineData();
 
-const getMaterialRowsForReport = (line, lineData) => {
+  const saved = localStorage.getItem(`work-notes-${date}`);
+  if (!saved) return createAllLineData();
+
+  try {
+    return normalizeSavedData(JSON.parse(saved));
+  } catch (error) {
+    console.error("Could not load saved work notes:", error);
+    return createAllLineData();
+  }
+};
+
+const isFilledBatch = (batch) => [batch.batch, batch.die, batch.description, batch.quantity].some(hasText);
+const isFilledMaterial = (material) => [material.batch, material.die, material.natural, material.color, material.regrind, material.additive].some(hasText) || material.coexes?.some((coex) => [coex.natural, coex.color, coex.regrind, coex.additive].some(hasText));
+const isFilledNote = (note) => [note.die, note.note, note.action, note.result].some(hasText);
+
+const getLineSummary = (lineData) => {
+  const batches = lineData.batches.filter(isFilledBatch).length;
+  const materials = [
+    ...lineData.materials.filter(isFilledMaterial),
+    ...lineData.batches.flatMap((batch) => batch.materials || []).filter(isFilledMaterial),
+  ].length;
+  const issues = [...lineData.notes, ...lineData.batches.flatMap((batch) => batch.notes || [])].filter(isFilledNote).length;
+  const firstBatch = lineData.batches.find(isFilledBatch);
+
+  return {
+    batches,
+    materials,
+    issues,
+    firstBatch,
+    hasContent: hasText(lineData.operator) || batches > 0 || materials > 0 || issues > 0,
+  };
+};
+
+const getScheduleRows = (line, lineData) => {
+  const batches = lineData.batches.filter(isFilledBatch);
+  if (!batches.length && !hasText(lineData.operator)) return [];
+  const rows = batches.length ? batches : [createBatch()];
+
+  return rows.map((batch, index) => ({
+    id: `${line}-${batch.id}-${index}`,
+    line,
+    operator: index === 0 ? lineData.operator : "",
+    batch: batch.batch,
+    die: batch.die,
+    description: batch.description,
+    quantity: batch.quantity,
+  }));
+};
+
+const getMaterialRows = (line, lineData) => {
   const rows = [];
-  const fallbackDie = lineData.batches?.[0]?.die || "";
+  const fallbackDie = lineData.batches.find((batch) => hasText(batch.die))?.die || "";
 
   lineData.materials.forEach((material, materialIndex) => {
-    const hasMainMaterial = [material.batch, material.die, material.natural, material.color, material.regrind, material.additive].some(hasText) || material.coexes?.length > 0;
-    if (!hasMainMaterial) return;
-
+    if (!isFilledMaterial(material)) return;
     rows.push({
-      label: materialIndex === 0 ? line : "",
-      die: material.die || (materialIndex === 0 ? fallbackDie : ""),
+      id: `${line}-line-material-${material.id}`,
+      line,
+      label: materialIndex === 0 ? `Line ${line}` : "",
+      die: material.die || fallbackDie,
       batch: material.batch,
       natural: material.natural,
       color: material.color,
@@ -184,7 +237,9 @@ const getMaterialRowsForReport = (line, lineData) => {
 
     material.coexes.forEach((coex) => {
       rows.push({
-        label: `Coex${String(coex.number).padStart(2, "0")}`,
+        id: `${line}-coex-${coex.id}`,
+        line,
+        label: `Coex ${String(coex.number).padStart(2, "0")}`,
         die: "",
         batch: "",
         natural: coex.natural,
@@ -195,654 +250,768 @@ const getMaterialRowsForReport = (line, lineData) => {
     });
   });
 
+  lineData.batches.forEach((batch) => {
+    (batch.materials || []).forEach((material) => {
+      if (!isFilledMaterial(material)) return;
+      rows.push({
+        id: `${line}-batch-material-${material.id}`,
+        line,
+        label: batch.batch ? `Batch ${batch.batch}` : `Line ${line}`,
+        die: material.die || batch.die,
+        batch: material.batch || batch.batch,
+        natural: material.natural,
+        color: material.color,
+        regrind: material.regrind,
+        additive: material.additive,
+      });
+    });
+  });
+
   return rows;
 };
 
-function Button({ children, active = false, small = false, style, ...props }) {
+const getIssueRows = (line, lineData) => {
+  const rows = [];
+
+  lineData.notes.forEach((note) => {
+    if (!isFilledNote(note)) return;
+    rows.push({
+      id: `${line}-line-note-${note.id}`,
+      line,
+      die: note.die,
+      batch: "",
+      issue: note.note,
+      action: note.action,
+      result: note.result,
+    });
+  });
+
+  lineData.batches.forEach((batch) => {
+    (batch.notes || []).forEach((note) => {
+      if (!isFilledNote(note)) return;
+      rows.push({
+        id: `${line}-batch-note-${note.id}`,
+        line,
+        die: note.die || batch.die,
+        batch: batch.batch,
+        issue: note.note,
+        action: note.action,
+        result: note.result,
+      });
+    });
+  });
+
+  return rows;
+};
+
+function IconButton({ icon: Icon, label, active = false, quiet = false, small = false, className = "", children, ...props }) {
   return (
     <button
       type="button"
-      style={{ ...styles.button, ...(small ? styles.smallButton : {}), ...(active ? styles.buttonPrimary : {}), ...style }}
+      className={`button ${active ? "button-primary" : ""} ${quiet ? "button-quiet" : ""} ${small ? "button-small" : ""} ${className}`}
       {...props}
     >
-      {children}
+      {Icon && <Icon size={small ? 15 : 17} strokeWidth={2.2} aria-hidden="true" />}
+      {children || <span>{label}</span>}
     </button>
   );
 }
 
-function Card({ children, style }) {
-  return (
-    <div style={{ ...styles.card, ...style }}>
-      <div style={styles.cardBody}>{children}</div>
-    </div>
-  );
-}
-
-function Field({ label, value, onChange, textarea = false }) {
+function Field({ label, value, onChange, textarea = false, type = "text", placeholder = "" }) {
   const Input = textarea ? "textarea" : "input";
   return (
-    <div>
-      <label style={styles.label}>{label}</label>
-      <Input value={value} onChange={(event) => onChange(event.target.value)} style={textarea ? styles.textarea : styles.input} />
+    <label className="field">
+      <span>{label}</span>
+      <Input
+        type={textarea ? undefined : type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function EmptyState({ title, text }) {
+  return (
+    <div className="empty-state">
+      <FileText size={22} aria-hidden="true" />
+      <strong>{title}</strong>
+      <span>{text}</span>
     </div>
   );
 }
 
-function TabButtons({ activeTab, onChange }) {
+function AppHeader({ date, shift, screen, onDateChange, onShiftChange, onScreenChange, menuOpen, setMenuOpen }) {
   return (
-    <div style={styles.tabGrid}>
-      {TABS.map((tab) => (
-        <Button key={tab} active={activeTab === tab} small style={styles.tabButton} onClick={() => onChange(tab)}>
-          {tabLabel(tab)}
-        </Button>
-      ))}
-    </div>
-  );
-}
+    <header className="app-header">
+      <div className="header-main">
+        <IconButton icon={Menu} label="Menu" quiet className="mobile-only" onClick={() => setMenuOpen(!menuOpen)} />
+        <div>
+          <h1>Work Notes</h1>
+          <p>{formatDisplayDate(date)} · Shift {shift}</p>
+        </div>
+      </div>
 
-function ReportHeader({ title, date, shift }) {
-  return (
-    <div style={styles.reportHeader}>
-      <div style={{ fontSize: 13, fontWeight: 700 }}>{title}</div>
-      <div style={{ fontSize: 13, fontWeight: 700, textAlign: "left" }}>{formatDisplayDate(date)}</div>
-      <div style={{ fontSize: 13, fontWeight: 700, textAlign: "right" }}>Shift {shift}</div>
-    </div>
-  );
-}
+      <div className="header-controls">
+        <label className="date-control">
+          <CalendarDays size={16} aria-hidden="true" />
+          <input type="date" value={date} onChange={(event) => onDateChange(event.target.value)} />
+        </label>
 
-function PdfButton({ onClick, isExporting }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 10 }}>
-      <Button small onClick={onClick} disabled={isExporting} style={isExporting ? { opacity: 0.7 } : {}}>
-        {isExporting ? "PDF..." : "PDF"}
-      </Button>
-    </div>
-  );
-}
-
-function LinesScreen({ date, shift, data, selectedLine, onDateChange, onShiftChange, onSelectLine }) {
-  return (
-    <Card>
-      <div style={{ marginTop: 14 }}>
-        <div style={styles.lineGrid}>
-          {LINE_GROUPS.map((group) => (
-            <div key={group.name} style={styles.lineColumn}>
-              <div style={styles.lineGroupTitle}>{group.name}</div>
-              {group.lines.map((line) => {
-                const lineKey = String(line);
-                const firstDie = data[lineKey]?.batches?.[0]?.die;
-
-                return (
-                  <Button
-                    key={line}
-                    active={selectedLine === lineKey}
-                    style={{ ...styles.lineButton, justifyContent: "space-between" }}
-                    onClick={() => onSelectLine(line)}
-                  >
-                    <span>{line}</span>
-                    <span style={{ fontSize: 14, opacity: 0.8 }}>{firstDie || ""}</span>
-                  </Button>
-                );
-              })}
-            </div>
+        <div className="segmented compact" aria-label="Shift">
+          {SHIFT_OPTIONS.map((option) => (
+            <button key={option} type="button" className={shift === option ? "active" : ""} onClick={() => onShiftChange(option)}>
+              {option}
+            </button>
           ))}
         </div>
       </div>
-    </Card>
+
+      <nav className="screen-tabs" aria-label="Main navigation">
+        <IconButton icon={Home} label="Lines" active={screen === "lines"} onClick={() => onScreenChange("lines")} />
+        <IconButton icon={ClipboardList} label="Entry" active={screen === "entry"} onClick={() => onScreenChange("entry")} />
+        <IconButton icon={FileText} label="Reports" active={screen === "reports"} onClick={() => onScreenChange("reports")} />
+      </nav>
+    </header>
   );
 }
+
+function MobileDrawer({ open, onClose, screen, onScreenChange, reportTab, onReportTabChange }) {
+  return (
+    <>
+      <button type="button" className={`drawer-scrim ${open ? "open" : ""}`} aria-label="Close menu" onClick={onClose} />
+      <aside className={`drawer ${open ? "open" : ""}`} aria-hidden={!open}>
+        <div className="drawer-head">
+          <strong>Menu</strong>
+          <IconButton icon={X} label="Close" quiet small onClick={onClose} />
+        </div>
+        <div className="drawer-list">
+          <IconButton icon={Home} label="Lines" active={screen === "lines"} onClick={() => { onScreenChange("lines"); onClose(); }} />
+          <IconButton icon={ClipboardList} label="Entry" active={screen === "entry"} onClick={() => { onScreenChange("entry"); onClose(); }} />
+          {REPORT_TABS.map(({ id, label, icon }) => (
+            <IconButton
+              key={id}
+              icon={icon}
+              label={label}
+              active={screen === "reports" && reportTab === id}
+              onClick={() => {
+                onReportTabChange(id);
+                onScreenChange("reports");
+                onClose();
+              }}
+            />
+          ))}
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function LinesScreen({ data, selectedLine, onSelectLine, onOpenLineReport }) {
+  return (
+    <section className="panel">
+      <div className="panel-title">
+        <div>
+          <h2>Lines</h2>
+          <p>Pick a line to enter work notes or open its report.</p>
+        </div>
+      </div>
+
+      <div className="line-groups">
+        {LINE_GROUPS.map((group) => (
+          <div className="line-group" key={group.name}>
+            <h3>{group.name}</h3>
+            <div className="line-list">
+              {group.lines.map((line) => {
+                const lineKey = String(line);
+                const lineData = data[lineKey];
+                const summary = getLineSummary(lineData);
+
+                return (
+                  <article key={line} className={`line-card ${selectedLine === lineKey ? "selected" : ""}`}>
+                    <button type="button" className="line-main" onClick={() => onSelectLine(lineKey)}>
+                      <span className="line-number">{line}</span>
+                      <span className="line-meta">
+                        {summary.firstBatch?.die ? `Die ${summary.firstBatch.die}` : summary.hasContent ? "Notes started" : "No entries"}
+                      </span>
+                      <span className={`status-dot ${summary.hasContent ? "filled" : ""}`} aria-hidden="true" />
+                    </button>
+                    <button type="button" className="line-report-button" onClick={() => onOpenLineReport(lineKey)}>
+                      <FileText size={16} aria-hidden="true" />
+                      <span>Report</span>
+                    </button>
+                    <div className="line-counts" aria-label={`Line ${line} summary`}>
+                      <span>{summary.batches} batch</span>
+                      <span>{summary.materials} mat</span>
+                      <span>{summary.issues} issue</span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function EntryScreen({
+  selectedLine,
+  selected,
+  entryTab,
+  onEntryTabChange,
+  onMoveLine,
+  onOpenLineReport,
+  updateOperator,
+  addBatch,
+  updateBatch,
+  removeBatch,
+  addBatchMaterial,
+  updateBatchMaterial,
+  removeBatchMaterial,
+  addBatchNote,
+  updateNote,
+  deleteNote,
+  addMaterial,
+  updateMaterial,
+  removeMaterial,
+  newCoexNumber,
+  setNewCoexNumber,
+  addCoex,
+  updateCoex,
+  removeCoex,
+  draftNote,
+  setDraftNote,
+  draftAction,
+  setDraftAction,
+  draftDie,
+  setDraftDie,
+  draftResult,
+  setDraftResult,
+  addLineNote,
+}) {
+  return (
+    <section className="panel">
+      <div className="entry-header">
+        <IconButton icon={ChevronLeft} label="Previous line" quiet onClick={() => onMoveLine(-1)} />
+        <div>
+          <span className="eyebrow">Selected line</span>
+          <h2>Line {selectedLine}</h2>
+        </div>
+        <IconButton icon={ChevronRight} label="Next line" quiet onClick={() => onMoveLine(1)} />
+      </div>
+
+      <div className="toolbar-row">
+        <div className="segmented grow">
+          {ENTRY_TABS.map(({ id, label, icon: Icon }) => (
+            <button key={id} type="button" className={entryTab === id ? "active" : ""} onClick={() => onEntryTabChange(id)}>
+              <Icon size={16} aria-hidden="true" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+        <IconButton icon={FileText} label="Line report" onClick={() => onOpenLineReport(selectedLine)} />
+      </div>
+
+      {entryTab === "schedule" && (
+        <ScheduleEntry
+          selected={selected}
+          updateOperator={updateOperator}
+          addBatch={addBatch}
+          updateBatch={updateBatch}
+          removeBatch={removeBatch}
+          addBatchMaterial={addBatchMaterial}
+          updateBatchMaterial={updateBatchMaterial}
+          removeBatchMaterial={removeBatchMaterial}
+          addBatchNote={addBatchNote}
+          updateNote={updateNote}
+          deleteNote={deleteNote}
+        />
+      )}
+
+      {entryTab === "materials" && (
+        <MaterialsEntry
+          selected={selected}
+          addMaterial={addMaterial}
+          updateMaterial={updateMaterial}
+          removeMaterial={removeMaterial}
+          newCoexNumber={newCoexNumber}
+          setNewCoexNumber={setNewCoexNumber}
+          addCoex={addCoex}
+          updateCoex={updateCoex}
+          removeCoex={removeCoex}
+        />
+      )}
+
+      {entryTab === "issues" && (
+        <IssuesEntry
+          selected={selected}
+          draftNote={draftNote}
+          setDraftNote={setDraftNote}
+          draftAction={draftAction}
+          setDraftAction={setDraftAction}
+          draftDie={draftDie}
+          setDraftDie={setDraftDie}
+          draftResult={draftResult}
+          setDraftResult={setDraftResult}
+          addLineNote={addLineNote}
+          updateNote={updateNote}
+          deleteNote={deleteNote}
+        />
+      )}
+    </section>
+  );
+}
+
 function ScheduleEntry({
   selected,
   updateOperator,
+  addBatch,
   updateBatch,
-  handleDeleteBatch,
-  confirmDeleteBatchId,
-  addBatchTroubleshoot,
+  removeBatch,
   addBatchMaterial,
   updateBatchMaterial,
-  updateTroubleshootNote,
-  updateMaterial,
   removeBatchMaterial,
-  deleteNote
+  addBatchNote,
+  updateNote,
+  deleteNote,
 }) {
-  const [batchesOpen, setBatchesOpen] = useState(true);
-  const [batchMenuOpenId, setBatchMenuOpenId] = useState(null);
-
   return (
-    <div>
-      <Field label="Operator" value={selected.operator} onChange={updateOperator} />
+    <div className="stack">
+      <Field label="Operator" value={selected.operator} onChange={updateOperator} placeholder="Name" />
 
-      <div style={{ marginTop: 12 }}>
-        <div style={{ marginBottom: 8 }}>
-          <button
-            type="button"
-            onClick={() => setBatchesOpen(!batchesOpen)}
-            style={{
-              ...styles.button,
-              ...styles.smallButton,
-              justifyContent: "space-between",
-              width: "100%"
-            }}
-          >
-            <span>Batches</span>
-            <span>{batchesOpen ? "▲" : "▼"}</span>
-          </button>
+      <div className="section-head">
+        <div>
+          <h3>Schedule</h3>
+          <p>Batches, dies, quantities, and any batch-specific notes.</p>
         </div>
-
-        {batchesOpen && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {selected.batches.map((batch) => (
-              <Card key={batch.id} style={{ boxShadow: "none" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <Button
-                    small
-                    onClick={() => handleDeleteBatch(batch.id)}
-                    style={{
-                      background: confirmDeleteBatchId === batch.id ? "#dc2626" : "#fff",
-                      color: confirmDeleteBatchId === batch.id ? "#fff" : "#0f172a",
-                      border: confirmDeleteBatchId === batch.id ? "1px solid #dc2626" : "1px solid #cbd5e1"
-                    }}
-                  >
-                    {confirmDeleteBatchId === batch.id ? "Confirm" : "Delete"}
-                  </Button>
-
-                  <div style={{ position: "relative" }}>
-                    <Button
-                      small
-                      onClick={() => setBatchMenuOpenId(batchMenuOpenId === batch.id ? null : batch.id)}
-                      style={{ borderRadius: 999, width: 32, height: 32, padding: 0 }}
-                    >
-                      +
-                    </Button>
-
-                    {batchMenuOpenId === batch.id && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 36,
-                          right: 0,
-                          background: "#fff",
-                          border: "1px solid #cbd5e1",
-                          borderRadius: 10,
-                          boxShadow: "0 4px 10px rgba(0,0,0,.1)",
-                          zIndex: 10,
-                          minWidth: 140
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            addBatchTroubleshoot(batch.id);
-                            setBatchMenuOpenId(null);
-                          }}
-                          style={{
-                            ...styles.button,
-                            ...styles.smallButton,
-                            width: "100%",
-                            justifyContent: "flex-start",
-                            background: "#fff"
-                          }}
-                        >
-                          Troubleshoot
-                        </button>
-                        <button
-  type="button"
-  onClick={() => {
-    addBatchMaterial(batch.id);
-    setBatchMenuOpenId(null);
-  }}
-  style={{
-    ...styles.button,
-    ...styles.smallButton,
-    width: "100%",
-    justifyContent: "flex-start",
-    background: "#fff"
-  }}
->
-  Materials
-</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div style={styles.batchRow}>
-                  <Field label="Batch" value={batch.batch} onChange={(value) => updateBatch(batch.id, "batch", value)} />
-                  <Field label="Die" value={batch.die} onChange={(value) => updateBatch(batch.id, "die", value)} />
-                </div>
-
-                <div style={{ marginTop: 10 }}>
-                  <Field label="Description" value={batch.description} onChange={(value) => updateBatch(batch.id, "description", value)} />
-                </div>
-
-                <div style={{ marginTop: 10 }}>
-                  <Field label="Quantity" value={batch.quantity} onChange={(value) => updateBatch(batch.id, "quantity", value)} />
-                </div>
-{(batch.materials || []).map((material) => (
-  <div key={material.id} style={{ marginTop: 10, padding: 10, border: "1px solid #cbd5e1", borderRadius: 12, background: "#f8fafc" }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-      <Button small onClick={() => removeBatchMaterial(material.id)}>Delete</Button>
-      <div style={{ fontWeight: 700, fontSize: 13 }}>Materials</div>
-    </div>
-
-
-    <div style={{ marginTop: 8 }}>
-      <Field label="Natural" value={material.natural || ""} onChange={(value) => updateBatchMaterial(material.id, "natural", value)} />
-    </div>
-
-    <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
-      <Field label="Color" value={material.color || ""} onChange={(value) => updateBatchMaterial(material.id, "color", value)} />
-      <Field label="Regrind" value={material.regrind || ""} onChange={(value) => updateBatchMaterial(material.id, "regrind", value)} />
-    </div>
-
-    <div style={{ marginTop: 8 }}>
-      <Field label="Additive" value={material.additive || ""} onChange={(value) => updateBatchMaterial(material.id, "additive", value)} />
-    </div>
-  </div>
-))}
-{(batch.notes || []).map((note) => (
-                    <div key={note.id} style={{ marginTop: 10, padding: 10, border: "1px solid #cbd5e1", borderRadius: 12, background: "#f8fafc" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-  <Button small onClick={() => deleteNote(note.id)}>Delete</Button>
-  <div style={{ fontWeight: 700, fontSize: 13 }}>Troubleshoot</div>
-</div>
-
-                      <Field label="Issue" value={note.note} onChange={(value) => updateTroubleshootNote(note.id, "note", value)} textarea />
-
-                      <div style={{ marginTop: 8 }}>
-                        <Field label="Troubleshooting Action" value={note.action} onChange={(value) => updateTroubleshootNote(note.id, "action", value)} textarea />
-                      </div>
-
-                      <div style={{ marginTop: 8 }}>
-                        <Field label="Result" value={note.result || ""} onChange={(value) => updateTroubleshootNote(note.id, "result", value)} textarea />
-                      </div>
-                    </div>
-                  ))}
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-function TroubleshootEntry({ selected, draftNote, setDraftNote, draftAction, setDraftAction, draftDie, setDraftDie, addNote, deleteNote }) {
-  return (
-    <div>
-      <div style={styles.noteGrid}>
-        <Field label="Die" value={draftDie} onChange={setDraftDie} />
-        <Field label="Notes" value={draftNote} onChange={setDraftNote} textarea />
-        <Field label="Troubleshooting Steps Taken" value={draftAction} onChange={setDraftAction} textarea />
+        <IconButton icon={Plus} label="Batch" active onClick={addBatch} />
       </div>
 
-      <div style={{ marginTop: 10 }}>
-        <Button active onClick={addNote}>+ Add Note / Troubleshooting</Button>
-      </div>
-
-      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-        {selected.notes.length > 0 ? (
-          selected.notes.map((note, index) => (
-            <Card key={note.id} style={{ boxShadow: "none" }}>
-              <div style={{ ...styles.muted, fontWeight: 700 }}>Pair {index + 1}</div>
-              <div style={{ fontSize: 14, marginTop: 6 }}><strong>Die:</strong> {note.die}</div>
-              <div style={{ fontSize: 14, marginTop: 6 }}><strong>Notes:</strong> {note.note}</div>
-              <div style={{ fontSize: 14, marginTop: 4 }}><strong>Troubleshooting Steps Taken:</strong> {note.action}</div>
-              <div style={{ marginTop: 8 }}>
-                <Button small onClick={() => deleteNote(note.id)}>Delete</Button>
+      <div className="card-list">
+        {selected.batches.map((batch, batchIndex) => (
+          <article className={`work-card ${batch.locked ? "locked" : ""}`} key={batch.id}>
+            <div className="card-head">
+              <div>
+                <span className="eyebrow">Batch {batchIndex + 1}</span>
+                <strong>{batch.batch || batch.die || "New batch"}</strong>
               </div>
-            </Card>
-          ))
-        ) : (
-          <div style={styles.muted}>No troubleshooting entries yet.</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MaterialsEntry({ selected, newCoexNumber, setNewCoexNumber, addMaterial, removeMaterial, updateMaterial, addCoex, updateCoex, removeCoex }) {
-  const hasAnyCoex = selected.materials.some((material) => material.coexes.length > 0);
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 8 }}>
-        <Button small onClick={addMaterial}>+ Add</Button>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {selected.materials.filter((material) => !material.batchId).map((material, index) => (
-          <Card key={material.id} style={{ boxShadow: "none" }}>
-            <div style={{ ...styles.muted, fontWeight: 700, marginBottom: 6 }}>Material Row {index + 1}</div>
-
-            <div style={styles.twoColumnGrid}>
-              <Field label="Batch" value={material.batch} onChange={(value) => updateMaterial(material.id, "batch", value)} />
-              <Field label="Die" value={material.die} onChange={(value) => updateMaterial(material.id, "die", value)} />
+              <div className="icon-actions">
+                <IconButton
+                  icon={batch.locked ? Unlock : Lock}
+                  label={batch.locked ? "Unlock" : "Lock"}
+                  quiet
+                  small
+                  onClick={() => updateBatch(batch.id, "locked", !batch.locked)}
+                />
+                <IconButton icon={Trash2} label="Delete" quiet small onClick={() => removeBatch(batch.id)} />
+              </div>
             </div>
 
-            <div style={{ marginTop: 8 }}>
-              <Field label="Natural" value={material.natural} onChange={(value) => updateMaterial(material.id, "natural", value)} />
+            {batch.locked ? (
+              <div className="locked-summary">
+                <span>{batch.batch || "No batch"}</span>
+                <span>Die {batch.die || "-"}</span>
+                <span>{batch.quantity || "No quantity"}</span>
+              </div>
+            ) : (
+              <div className="field-grid">
+                <Field label="Batch" value={batch.batch} onChange={(value) => updateBatch(batch.id, "batch", value)} />
+                <Field label="Die" value={batch.die} onChange={(value) => updateBatch(batch.id, "die", value)} />
+                <Field label="Description" value={batch.description} onChange={(value) => updateBatch(batch.id, "description", value)} />
+                <Field label="Quantity" value={batch.quantity} onChange={(value) => updateBatch(batch.id, "quantity", value)} />
+              </div>
+            )}
+
+            <div className="sub-actions">
+              <IconButton icon={Package} label="Material" small onClick={() => addBatchMaterial(batch.id)} />
+              <IconButton icon={Wrench} label="Issue" small onClick={() => addBatchNote(batch.id)} />
             </div>
 
-            <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
-              <Field label="Color" value={material.color} onChange={(value) => updateBatchMaterial(material.id, "color", value)} />
-              <Field label="Regrind" value={material.regrind} onChange={(value) => updateBatchMaterial(material.id, "regrind", value)} />
-            </div>
-
-            <div style={{ marginTop: 8 }}>
-              <Field label="Additive" value={material.additive} onChange={(value) => updateBatchMaterial(material.id, "additive", value)} />
-            </div>
-
-            <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "end" }}>
-              {!hasAnyCoex && (
-                <>
-                  <div style={{ width: 80 }}>
-                    <Field label="Coex #" value={newCoexNumber} onChange={setNewCoexNumber} />
-                  </div>
-                  <Button small onClick={() => addCoex(material.id)}>+ Add Coex</Button>
-                </>
-              )}
-              <Button small onClick={() => removeMaterial(material.id)}>Delete</Button>
-            </div>
-
-            {material.coexes.map((coex) => (
-              <div key={coex.id} style={{ borderLeft: "3px solid #94a3b8", paddingLeft: 8, marginTop: 10 }}>
-                <div style={{ fontWeight: 800, marginBottom: 6 }}>Coex{String(coex.number).padStart(2, "0")}</div>
-                <div style={{ marginTop: 8 }}>
-                  <Field label="Natural" value={coex.natural} onChange={(value) => updateCoex(material.id, coex.id, "natural", value)} />
+            {(batch.materials || []).map((material) => (
+              <div className="sub-card" key={material.id}>
+                <div className="sub-card-head">
+                  <strong>Batch material</strong>
+                  <IconButton icon={Trash2} label="Delete" quiet small onClick={() => removeBatchMaterial(material.id)} />
                 </div>
-                <div style={{ ...styles.twoColumnGrid, marginTop: 8 }}>
-                  <Field label="Color" value={coex.color} onChange={(value) => updateCoex(material.id, coex.id, "color", value)} />
-                  <Field label="Regrind" value={coex.regrind} onChange={(value) => updateCoex(material.id, coex.id, "regrind", value)} />
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <Field label="Additive" value={coex.additive} onChange={(value) => updateCoex(material.id, coex.id, "additive", value)} />
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <Button small onClick={() => removeCoex(material.id, coex.id)}>Delete Coex</Button>
+                <div className="field-grid">
+                  <Field label="Natural" value={material.natural || ""} onChange={(value) => updateBatchMaterial(material.id, "natural", value)} />
+                  <Field label="Color" value={material.color || ""} onChange={(value) => updateBatchMaterial(material.id, "color", value)} />
+                  <Field label="Regrind" value={material.regrind || ""} onChange={(value) => updateBatchMaterial(material.id, "regrind", value)} />
+                  <Field label="Additive" value={material.additive || ""} onChange={(value) => updateBatchMaterial(material.id, "additive", value)} />
                 </div>
               </div>
             ))}
-          </Card>
+
+            {(batch.notes || []).map((note) => (
+              <NoteEditor key={note.id} note={note} title="Batch issue" updateNote={updateNote} deleteNote={deleteNote} />
+            ))}
+          </article>
         ))}
       </div>
     </div>
   );
 }
 
-function EntryScreen(props) {
-  const { selectedLine, selected, entryTab, setEntryTab, moveLine, addBatch } = props;
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
-
-  const currentIndex = LINE_NUMBERS.indexOf(Number(selectedLine));
-  const prevLine = LINE_NUMBERS[currentIndex - 1];
-  const nextLine = LINE_NUMBERS[currentIndex + 1];
-
+function MaterialsEntry({ selected, addMaterial, updateMaterial, removeMaterial, newCoexNumber, setNewCoexNumber, addCoex, updateCoex, removeCoex }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <Card>
-        <div
-          style={{
-            position: "sticky",
-            top: 0,
-            zIndex: 30,
-            background: "#fff",
-            paddingBottom: 8,
-            display: "grid",
-            gridTemplateColumns: "1fr 42px",
-            gap: 6,
-            alignItems: "start"
-          }}
-        >
+    <div className="stack">
+      <div className="section-head">
+        <div>
+          <h3>Materials</h3>
+          <p>Line-level material details and coex rows.</p>
+        </div>
+        <IconButton icon={Plus} label="Material" active onClick={addMaterial} />
+      </div>
 
-</div>
-        <div style={{ position: "relative", marginBottom: 10, minHeight: 32 }}>
-  
-  {/* Line title - LEFT */}
-  <div style={{ position: "absolute", left: 0, top: 0, fontWeight: 800, fontSize: 18 }}>
-    Line {selectedLine}
-  </div>
+      <div className="card-list">
+        {selected.materials.map((material, index) => (
+          <article className="work-card" key={material.id}>
+            <div className="card-head">
+              <div>
+                <span className="eyebrow">Material {index + 1}</span>
+                <strong>{material.batch || material.die || "Line material"}</strong>
+              </div>
+              <IconButton icon={Trash2} label="Delete" quiet small onClick={() => removeMaterial(material.id)} />
+            </div>
 
-  {/* + button - RIGHT */}
-  <Button
-    small
-    onClick={() => setAddMenuOpen(!addMenuOpen)}
-    style={{
-      position: "absolute",
-      right: 0,
-      top: 0,
-      borderRadius: 999,
-      width: 32,
-      height: 32,
-      padding: 0
-    }}
-  >
-    +
-  </Button>
-  {addMenuOpen && (
-  <div
-    style={{
-      position: "absolute",
-      top: 36,
-      right: 0,
-      background: "#fff",
-      border: "1px solid #cbd5e1",
-      borderRadius: 12,
-      boxShadow: "0 4px 12px rgba(0,0,0,.15)",
-      padding: 6,
-      minWidth: 150,
-      zIndex: 100
-    }}
-  >
-    <button
-      type="button"
-      onClick={() => {
-        addBatch();
-        setAddMenuOpen(false);
-      }}
-      style={{
-        ...styles.button,
-        ...styles.smallButton,
-        width: "100%",
-        justifyContent: "flex-start",
-        background: "#fff",
-        color: "#0f172a"
-      }}
-    >
-      Add Batch
-    </button>
-  </div>
-)}
+            <div className="field-grid">
+              <Field label="Batch" value={material.batch} onChange={(value) => updateMaterial(material.id, "batch", value)} />
+              <Field label="Die" value={material.die} onChange={(value) => updateMaterial(material.id, "die", value)} />
+              <Field label="Natural" value={material.natural} onChange={(value) => updateMaterial(material.id, "natural", value)} />
+              <Field label="Color" value={material.color} onChange={(value) => updateMaterial(material.id, "color", value)} />
+              <Field label="Regrind" value={material.regrind} onChange={(value) => updateMaterial(material.id, "regrind", value)} />
+              <Field label="Additive" value={material.additive} onChange={(value) => updateMaterial(material.id, "additive", value)} />
+            </div>
 
-</div>
+            <div className="coex-add">
+              <Field label="Coex #" value={newCoexNumber} onChange={setNewCoexNumber} />
+              <IconButton icon={Plus} label="Add coex" onClick={() => addCoex(material.id)} />
+            </div>
 
-        {entryTab === "schedule" && <ScheduleEntry selected={selected} {...props} />}
-        {entryTab === "troubleshoot" && <TroubleshootEntry selected={selected} {...props} />}
-        {entryTab === "materials" && <MaterialsEntry selected={selected} {...props} />}
-      </Card>
-    </div>
-  );
-}
-
-function ScheduleReport({ data, date, shift, exportReportPdf, isExporting }) {
-  const grid = { display: "grid", gridTemplateColumns: "28px 50px 52px 30px 1fr 60px", columnGap: 2, textAlign: "left" };
-
-  return (
-    <div>
-      <PdfButton onClick={exportReportPdf} isExporting={isExporting} />
-      <div id="print-area" style={styles.reportShell}>
-        <ReportHeader title="Schedule" date={date} shift={shift} />
-        <div style={styles.reportBlock}>
-          <div style={{ ...grid, ...styles.reportHeadRow }}>
-            <div>Line</div><div>Operator</div><div>Batch</div><div>Die</div><div>Description</div><div>Quantity</div>
-          </div>
-          {Object.entries(data).map(([line, lineData]) => {
-            const filledBatches = getFilledBatches(lineData);
-            const hasContent = hasText(lineData.operator) || filledBatches.length > 0;
-            if (!hasContent) return null;
-
-            const rowsToPrint = filledBatches.length ? filledBatches : [createBatch()];
-
-            return (
-              <div key={line} style={{ marginBottom: 4 }}>
-                {rowsToPrint.map((batch, index) => (
-                  <div key={batch.id} style={{ ...grid, ...styles.reportRow, marginBottom: index === rowsToPrint.length - 1 ? 0 : 2 }}>
-                    <div>{index === 0 ? line : ""}</div>
-                    <div>{index === 0 ? lineData.operator || "-" : ""}</div>
-                    <div>{batch.batch || "-"}</div>
-                    <div>{batch.die || ""}</div>
-                    <div>{batch.description || ""}</div>
-                    <div>{batch.quantity || ""}</div>
+            {material.coexes.length > 0 && (
+              <div className="sub-stack">
+                {material.coexes.map((coex) => (
+                  <div className="sub-card" key={coex.id}>
+                    <div className="sub-card-head">
+                      <strong>Coex {String(coex.number).padStart(2, "0")}</strong>
+                      <IconButton icon={Trash2} label="Delete" quiet small onClick={() => removeCoex(material.id, coex.id)} />
+                    </div>
+                    <div className="field-grid">
+                      <Field label="Natural" value={coex.natural} onChange={(value) => updateCoex(material.id, coex.id, "natural", value)} />
+                      <Field label="Color" value={coex.color} onChange={(value) => updateCoex(material.id, coex.id, "color", value)} />
+                      <Field label="Regrind" value={coex.regrind} onChange={(value) => updateCoex(material.id, coex.id, "regrind", value)} />
+                      <Field label="Additive" value={coex.additive} onChange={(value) => updateCoex(material.id, coex.id, "additive", value)} />
+                    </div>
                   </div>
                 ))}
               </div>
-            );
-          })}
-        </div>
+            )}
+          </article>
+        ))}
       </div>
     </div>
   );
 }
 
-function TroubleshootReport({ data, date, shift, exportReportPdf, isExporting }) {
-  const topGrid = {
-  display: "grid",
-  gridTemplateColumns: "auto auto auto",
-  columnGap: 12,
-  justifyContent: "start"
-};
-
-  const detailGrid = {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    columnGap: 6
-  };
+function IssuesEntry({ selected, draftNote, setDraftNote, draftAction, setDraftAction, draftDie, setDraftDie, draftResult, setDraftResult, addLineNote, updateNote, deleteNote }) {
+  const notes = selected.notes.filter(isFilledNote);
 
   return (
-    <div>
-      <PdfButton onClick={exportReportPdf} isExporting={isExporting} />
-
-      <div id="print-area" style={styles.reportShell}>
-        <ReportHeader title="Troubleshoot" date={date} shift={shift} />
-
-        <div style={styles.reportBlock}>
-          <div style={{ ...detailGrid, ...styles.reportHeadRow }}>
-            <div>Issue</div>
-            <div>Troubleshooting Action</div>
-            <div>Result</div>
-          </div>
-
-          {Object.entries(data).map(([line, lineData]) => {
-            if (!lineData.notes.length) return null;
-
-            const firstDie = lineData.batches?.[0]?.die || "";
-            const firstBatch = lineData.batches?.[0]?.batch || "";
-
-            return lineData.notes.map((note, index) => (
-  <div key={note.id} style={{ marginBottom: 6 }}>
-    {index === 0 && (
-      <div style={{ ...topGrid, ...styles.reportRow, fontWeight: 700 }}>
-        <div>Line {line}</div>
-        <div>Die {note.die || firstDie}</div>
-        <div>Batch {firstBatch}</div>
-      </div>
-    )}
-
-    <div style={{ ...detailGrid, ...styles.reportRow, marginTop: index === 0 ? 2 : 0 }}>
-      <div>{note.note || ""}</div>
-      <div>{note.action || ""}</div>
-<div>{note.result || ""}</div>
-    </div>
-  </div>
-));
-          })}
+    <div className="stack">
+      <div className="section-head">
+        <div>
+          <h3>Issues</h3>
+          <p>Line-level troubleshooting notes and results.</p>
         </div>
+      </div>
+
+      <article className="work-card">
+        <div className="field-grid">
+          <Field label="Die" value={draftDie} onChange={setDraftDie} />
+          <Field label="Issue" value={draftNote} onChange={setDraftNote} textarea />
+          <Field label="Action" value={draftAction} onChange={setDraftAction} textarea />
+          <Field label="Result" value={draftResult} onChange={setDraftResult} textarea />
+        </div>
+        <div className="form-footer">
+          <IconButton icon={Plus} label="Add issue" active onClick={addLineNote} />
+        </div>
+      </article>
+
+      {notes.length ? (
+        <div className="card-list">
+          {notes.map((note) => (
+            <NoteEditor key={note.id} note={note} title="Line issue" updateNote={updateNote} deleteNote={deleteNote} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="No line issues" text="Batch-specific issues still appear in reports." />
+      )}
+    </div>
+  );
+}
+
+function NoteEditor({ note, title, updateNote, deleteNote }) {
+  return (
+    <div className="sub-card note-editor">
+      <div className="sub-card-head">
+        <strong>{title}</strong>
+        <IconButton icon={Trash2} label="Delete" quiet small onClick={() => deleteNote(note.id)} />
+      </div>
+      <div className="field-grid">
+        <Field label="Die" value={note.die || ""} onChange={(value) => updateNote(note.id, "die", value)} />
+        <Field label="Issue" value={note.note || ""} onChange={(value) => updateNote(note.id, "note", value)} textarea />
+        <Field label="Action" value={note.action || ""} onChange={(value) => updateNote(note.id, "action", value)} textarea />
+        <Field label="Result" value={note.result || ""} onChange={(value) => updateNote(note.id, "result", value)} textarea />
       </div>
     </div>
   );
 }
 
-function MaterialsReport({ data, date, shift, exportReportPdf, isExporting }) {
-  const grid = { display: "grid", gridTemplateColumns: "28px 45px 45px 1fr 1fr 1fr 1fr" };
+function ReportsScreen({ data, date, shift, selectedLine, setSelectedLine, reportTab, setReportTab, onExportPdf, onPrint, isExporting }) {
+  const selectedLineData = data[selectedLine] || createLineData();
 
   return (
-    <div>
-      <PdfButton onClick={exportReportPdf} isExporting={isExporting} />
-      <div id="print-area" style={styles.reportShell}>
-        <ReportHeader title="Materials" date={date} shift={shift} />
-        <div style={styles.reportBlock}>
-          <div style={{ ...grid, ...styles.reportHeadRow }}>
-            <div>Line</div><div>Die</div><div>Batch</div><div>Natural</div><div>Color</div><div>Regrind</div><div>Additive</div>
-          </div>
-          {Object.entries(data).map(([line, lineData]) => {
-            const rows = getMaterialRowsForReport(line, lineData);
-            if (!rows.length) return null;
-
-            return rows.map((row, index) => (
-              <div key={`${line}-${index}-${row.label}`} style={{ ...grid, ...styles.reportRow, marginBottom: 2 }}>
-                <div style={{ textAlign: "left", whiteSpace: "nowrap" }}>{row.label}</div>
-                <div style={{ textAlign: "left" }}>{row.die}</div>
-                <div style={{ textAlign: "left" }}>{row.batch}</div>
-                <div style={{ textAlign: "left" }}>{row.natural}</div>
-                <div style={{ textAlign: "left" }}>{row.color}</div>
-                <div style={{ textAlign: "left" }}>{row.regrind}</div>
-                <div style={{ textAlign: "left" }}>{row.additive}</div>
-              </div>
-            ));
-          })}
+    <section className="panel reports-panel">
+      <div className="panel-title">
+        <div>
+          <h2>Reports</h2>
+          <p>Display, save as PDF, or print the current report.</p>
         </div>
+      </div>
+
+      <div className="toolbar-row">
+        <div className="segmented report-tabs grow">
+          {REPORT_TABS.map(({ id, label, icon: Icon }) => (
+            <button key={id} type="button" className={reportTab === id ? "active" : ""} onClick={() => setReportTab(id)}>
+              <Icon size={16} aria-hidden="true" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+
+        {reportTab === "line" && (
+          <label className="select-control">
+            <span>Line</span>
+            <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
+              {LINE_NUMBERS.map((line) => (
+                <option value={String(line)} key={line}>
+                  {line}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+
+      <div className="report-actions">
+        <IconButton icon={Download} label={isExporting ? "Creating PDF" : "PDF"} active onClick={onExportPdf} disabled={isExporting} />
+        <IconButton icon={Printer} label="Print" onClick={onPrint} />
+      </div>
+
+      <div id="print-area" className="print-area">
+        {reportTab === "line" && <LineReport line={selectedLine} lineData={selectedLineData} date={date} shift={shift} />}
+        {reportTab === "schedule" && <ScheduleReport data={data} date={date} shift={shift} />}
+        {reportTab === "materials" && <MaterialsReport data={data} date={date} shift={shift} />}
+        {reportTab === "issues" && <IssuesReport data={data} date={date} shift={shift} />}
+      </div>
+    </section>
+  );
+}
+
+function ReportHeader({ title, date, shift, subtitle }) {
+  return (
+    <div className="report-header">
+      <div>
+        <span className="report-kicker">Work Notes</span>
+        <h2>{title}</h2>
+        {subtitle && <p>{subtitle}</p>}
+      </div>
+      <div className="report-meta">
+        <span>{formatDisplayDate(date)}</span>
+        <span>Shift {shift}</span>
       </div>
     </div>
   );
 }
 
-function ReportScreen({ reportTab, setReportTab, ...props }) {
+function ReportSection({ title, children }) {
   return (
-    <Card>
-      {reportTab === "schedule" && <ScheduleReport {...props} />}
-      {reportTab === "troubleshoot" && <TroubleshootReport {...props} />}
-      {reportTab === "materials" && <MaterialsReport {...props} />}
-    </Card>
+    <section className="report-section">
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function LineReport({ line, lineData, date, shift }) {
+  const scheduleRows = getScheduleRows(line, lineData);
+  const materialRows = getMaterialRows(line, lineData);
+  const issueRows = getIssueRows(line, lineData);
+
+  return (
+    <article className="report-page">
+      <ReportHeader title={`Line ${line} Report`} subtitle={lineData.operator ? `Operator: ${lineData.operator}` : "Operator not entered"} date={date} shift={shift} />
+
+      <ReportSection title="Schedule">
+        {scheduleRows.length ? <ScheduleTable rows={scheduleRows} showLine={false} /> : <ReportEmpty>No schedule entries for this line.</ReportEmpty>}
+      </ReportSection>
+
+      <ReportSection title="Materials">
+        {materialRows.length ? <MaterialsTable rows={materialRows} showLine={false} /> : <ReportEmpty>No material entries for this line.</ReportEmpty>}
+      </ReportSection>
+
+      <ReportSection title="Issues">
+        {issueRows.length ? <IssuesTable rows={issueRows} showLine={false} /> : <ReportEmpty>No issue entries for this line.</ReportEmpty>}
+      </ReportSection>
+    </article>
+  );
+}
+
+function ScheduleReport({ data, date, shift }) {
+  const rows = Object.entries(data).flatMap(([line, lineData]) => getScheduleRows(line, lineData));
+
+  return (
+    <article className="report-page">
+      <ReportHeader title="Daily Schedule" date={date} shift={shift} />
+      {rows.length ? <ScheduleTable rows={rows} /> : <ReportEmpty>No schedule entries for this date.</ReportEmpty>}
+    </article>
+  );
+}
+
+function MaterialsReport({ data, date, shift }) {
+  const rows = Object.entries(data).flatMap(([line, lineData]) => getMaterialRows(line, lineData));
+
+  return (
+    <article className="report-page">
+      <ReportHeader title="Daily Materials" date={date} shift={shift} />
+      {rows.length ? <MaterialsTable rows={rows} /> : <ReportEmpty>No material entries for this date.</ReportEmpty>}
+    </article>
+  );
+}
+
+function IssuesReport({ data, date, shift }) {
+  const rows = Object.entries(data).flatMap(([line, lineData]) => getIssueRows(line, lineData));
+
+  return (
+    <article className="report-page">
+      <ReportHeader title="Issue Report" date={date} shift={shift} />
+      {rows.length ? <IssuesTable rows={rows} /> : <ReportEmpty>No issue entries for this date.</ReportEmpty>}
+    </article>
+  );
+}
+
+function ReportEmpty({ children }) {
+  return <div className="report-empty">{children}</div>;
+}
+
+function ScheduleTable({ rows, showLine = true }) {
+  return (
+    <div className="report-table schedule-table">
+      <div className="report-row report-row-head">
+        {showLine && <span>Line</span>}
+        <span>Operator</span>
+        <span>Batch</span>
+        <span>Die</span>
+        <span>Description</span>
+        <span>Quantity</span>
+      </div>
+      {rows.map((row) => (
+        <div className="report-row" key={row.id}>
+          {showLine && <span>{row.line}</span>}
+          <span>{row.operator || "-"}</span>
+          <span>{row.batch || "-"}</span>
+          <span>{row.die || "-"}</span>
+          <span>{row.description || "-"}</span>
+          <span>{row.quantity || "-"}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MaterialsTable({ rows, showLine = true }) {
+  return (
+    <div className="report-table materials-table">
+      <div className="report-row report-row-head">
+        {showLine && <span>Line</span>}
+        <span>Item</span>
+        <span>Die</span>
+        <span>Batch</span>
+        <span>Natural</span>
+        <span>Color</span>
+        <span>Regrind</span>
+        <span>Additive</span>
+      </div>
+      {rows.map((row) => (
+        <div className="report-row" key={row.id}>
+          {showLine && <span>{row.line}</span>}
+          <span>{row.label || "-"}</span>
+          <span>{row.die || "-"}</span>
+          <span>{row.batch || "-"}</span>
+          <span>{row.natural || "-"}</span>
+          <span>{row.color || "-"}</span>
+          <span>{row.regrind || "-"}</span>
+          <span>{row.additive || "-"}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function IssuesTable({ rows, showLine = true }) {
+  return (
+    <div className="report-table issues-table">
+      <div className="report-row report-row-head">
+        {showLine && <span>Line</span>}
+        <span>Die</span>
+        <span>Batch</span>
+        <span>Issue</span>
+        <span>Action</span>
+        <span>Result</span>
+      </div>
+      {rows.map((row) => (
+        <div className="report-row" key={row.id}>
+          {showLine && <span>{row.line}</span>}
+          <span>{row.die || "-"}</span>
+          <span>{row.batch || "-"}</span>
+          <span>{row.issue || "-"}</span>
+          <span>{row.action || "-"}</span>
+          <span>{row.result || "-"}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
 export default function App() {
-  const [isExporting, setIsExporting] = useState(false);
-  const [shift, setShift] = useState("A");
   const [date, setDate] = useState(todayString());
-  const [data, setData] = useState(createAllLineData());
+  const [shift, setShift] = useState("A");
+  const [data, setData] = useState(() => loadDataForDate(date));
   const [selectedLine, setSelectedLine] = useState("1");
   const [screen, setScreen] = useState("lines");
   const [entryTab, setEntryTab] = useState("schedule");
-  const [reportTab, setReportTab] = useState("schedule");
+  const [reportTab, setReportTab] = useState("line");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [newCoexNumber, setNewCoexNumber] = useState("02");
   const [draftNote, setDraftNote] = useState("");
   const [draftAction, setDraftAction] = useState("");
+  const [draftResult, setDraftResult] = useState("");
   const [draftDie, setDraftDie] = useState("");
-  const [newCoexNumber, setNewCoexNumber] = useState("02");
-  const [touchStartX, setTouchStartX] = useState(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuMode, setMenuMode] = useState("main");
-  const [confirmDeleteBatchId, setConfirmDeleteBatchId] = useState(null);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(`work-notes-${date}`);
-    if (!saved) {
-      setData(createAllLineData());
-      return;
-    }
-
-    try {
-      setData(normalizeSavedData(JSON.parse(saved)));
-    } catch (error) {
-      console.error("Could not load saved work notes:", error);
-      setData(createAllLineData());
-    }
-  }, [date]);
 
   useEffect(() => {
     localStorage.setItem(`work-notes-${date}`, JSON.stringify(data));
   }, [data, date]);
 
   const selected = useMemo(() => data[selectedLine] || createLineData(), [data, selectedLine]);
+
+  const changeDate = (value) => {
+    setDate(value);
+    setData(loadDataForDate(value));
+  };
 
   const updateSelectedLine = (lineUpdater) => {
     setData((previousData) => ({
@@ -863,80 +1032,64 @@ export default function App() {
   };
 
   const removeBatch = (id) => {
-  updateSelectedLine((lineData) => {
-    const batches = lineData.batches.filter((batch) => batch.id !== id);
-    return { ...lineData, batches: batches.length ? batches : [createBatch()] };
-  });
-};
+    updateSelectedLine((lineData) => {
+      const batches = lineData.batches.filter((batch) => batch.id !== id);
+      return { ...lineData, batches: batches.length ? batches : [createBatch()] };
+    });
+  };
 
-const handleDeleteBatch = (id) => {
-  if (confirmDeleteBatchId !== id) {
-    setConfirmDeleteBatchId(id);
-    return;
-  }
-
-  removeBatch(id);
-  setConfirmDeleteBatchId(null);
-};
-
-const addBatchTroubleshoot = (batchId) => {
-  updateSelectedLine((lineData) => {
-    return {
+  const addBatchMaterial = (batchId) => {
+    updateSelectedLine((lineData) => ({
       ...lineData,
       batches: lineData.batches.map((batch) => {
         if (batch.id !== batchId) return batch;
-
-        return {
-          ...batch,
-          notes: [
-            ...batch.notes,
-            {
-              id: makeId(),
-              note: "",
-              action: "",
-              result: "",
-              die: batch.die || ""
-            }
-          ]
-        };
-      })
-    };
-  });
-};
-const addBatchMaterial = (batchId) => {
-  updateSelectedLine((lineData) => {
-    return {
-      ...lineData,
-      batches: lineData.batches.map((batch) => {
-        if (batch.id !== batchId) return batch;
-
         return {
           ...batch,
           materials: [
-            ...batch.materials,
+            ...(batch.materials || []),
             {
-              id: makeId(),
-              batch: batch.batch || "",
-              die: batch.die || "",
-              natural: "",
-              color: "",
-              regrind: "",
-              additive: ""
-            }
-          ]
+              ...createMaterial(),
+              batch: batch.batch,
+              die: batch.die,
+            },
+          ],
         };
-      })
-    };
-  });
-};
-const updateTroubleshootNote = (id, field, value) => {
-  updateSelectedLine((lineData) => ({
-    ...lineData,
-    notes: lineData.notes.map((note) =>
-      note.id === id ? { ...note, [field]: value } : note
-    )
-  }));
-};
+      }),
+    }));
+  };
+
+  const updateBatchMaterial = (id, field, value) => {
+    updateSelectedLine((lineData) => ({
+      ...lineData,
+      batches: lineData.batches.map((batch) => ({
+        ...batch,
+        materials: (batch.materials || []).map((material) => (material.id === id ? { ...material, [field]: value } : material)),
+      })),
+    }));
+  };
+
+  const removeBatchMaterial = (id) => {
+    updateSelectedLine((lineData) => ({
+      ...lineData,
+      batches: lineData.batches.map((batch) => ({
+        ...batch,
+        materials: (batch.materials || []).filter((material) => material.id !== id),
+      })),
+    }));
+  };
+
+  const addBatchNote = (batchId) => {
+    updateSelectedLine((lineData) => ({
+      ...lineData,
+      batches: lineData.batches.map((batch) => {
+        if (batch.id !== batchId) return batch;
+        return {
+          ...batch,
+          notes: [...(batch.notes || []), createNote({ die: batch.die })],
+        };
+      }),
+    }));
+  };
 
   const addMaterial = () => updateSelectedLine((lineData) => ({ ...lineData, materials: [...lineData.materials, createMaterial()] }));
 
@@ -953,33 +1106,16 @@ const updateTroubleshootNote = (id, field, value) => {
       return { ...lineData, materials: materials.length ? materials : [createMaterial()] };
     });
   };
-  const updateBatchMaterial = (id, field, value) => {
-  updateSelectedLine((lineData) => ({
-    ...lineData,
-    batches: lineData.batches.map((batch) => ({
-      ...batch,
-      materials: (batch.materials || []).map((material) =>
-        material.id === id ? { ...material, [field]: value } : material
-      ),
-    })),
-  }));
-};
-const removeBatchMaterial = (id) => {
-  updateSelectedLine((lineData) => ({
-    ...lineData,
-    batches: lineData.batches.map((batch) => ({
-      ...batch,
-      materials: (batch.materials || []).filter((material) => material.id !== id),
-    })),
-  }));
-};
+
   const addCoex = (materialId) => {
     const cleanNumber = String(newCoexNumber || "").trim().replace(/^Coex/i, "");
     if (!cleanNumber) return;
 
     updateSelectedLine((lineData) => ({
       ...lineData,
-      materials: lineData.materials.map((material) => (material.id === materialId ? { ...material, coexes: [createCoex(cleanNumber)] } : material)),
+      materials: lineData.materials.map((material) => (
+        material.id === materialId ? { ...material, coexes: [...material.coexes, createCoex(cleanNumber)] } : material
+      )),
     }));
   };
 
@@ -999,41 +1135,72 @@ const removeBatchMaterial = (id) => {
   const removeCoex = (materialId, coexId) => {
     updateSelectedLine((lineData) => ({
       ...lineData,
-      materials: lineData.materials.map((material) => (material.id === materialId ? { ...material, coexes: material.coexes.filter((coex) => coex.id !== coexId) } : material)),
+      materials: lineData.materials.map((material) => (
+        material.id === materialId ? { ...material, coexes: material.coexes.filter((coex) => coex.id !== coexId) } : material
+      )),
     }));
   };
 
-  const addNote = () => {
-    if (!hasText(draftNote) && !hasText(draftAction) && !hasText(draftDie)) return;
+  const addLineNote = () => {
+    if (![draftDie, draftNote, draftAction, draftResult].some(hasText)) return;
 
     updateSelectedLine((lineData) => ({
       ...lineData,
       notes: [
         ...lineData.notes,
-        {
-          id: makeId(),
+        createNote({
+          die: draftDie.trim(),
           note: draftNote.trim(),
           action: draftAction.trim(),
-          die: draftDie.trim(),
-        },
+          result: draftResult.trim(),
+        }),
       ],
     }));
 
+    setDraftDie("");
     setDraftNote("");
     setDraftAction("");
-    setDraftDie("");
+    setDraftResult("");
+  };
+
+  const updateNote = (id, field, value) => {
+    updateSelectedLine((lineData) => ({
+      ...lineData,
+      notes: lineData.notes.map((note) => (note.id === id ? { ...note, [field]: value } : note)),
+      batches: lineData.batches.map((batch) => ({
+        ...batch,
+        notes: (batch.notes || []).map((note) => (note.id === id ? { ...note, [field]: value } : note)),
+      })),
+    }));
   };
 
   const deleteNote = (id) => {
-  updateSelectedLine((lineData) => ({
-    ...lineData,
-    notes: lineData.notes.filter((note) => note.id !== id),
-    batches: lineData.batches.map((batch) => ({
-      ...batch,
-      notes: (batch.notes || []).filter((note) => note.id !== id),
-    })),
-  }));
-};
+    updateSelectedLine((lineData) => ({
+      ...lineData,
+      notes: lineData.notes.filter((note) => note.id !== id),
+      batches: lineData.batches.map((batch) => ({
+        ...batch,
+        notes: (batch.notes || []).filter((note) => note.id !== id),
+      })),
+    }));
+  };
+
+  const selectLine = (line) => {
+    setSelectedLine(String(line));
+    setScreen("entry");
+  };
+
+  const openLineReport = (line) => {
+    setSelectedLine(String(line));
+    setReportTab("line");
+    setScreen("reports");
+  };
+
+  const moveLine = (direction) => {
+    const currentIndex = LINE_NUMBERS.indexOf(Number(selectedLine));
+    const nextLine = LINE_NUMBERS[currentIndex + direction];
+    if (nextLine) setSelectedLine(String(nextLine));
+  };
 
   const exportReportPdf = async () => {
     const reportElement = document.getElementById("print-area");
@@ -1041,15 +1208,30 @@ const removeBatchMaterial = (id) => {
 
     try {
       setIsExporting(true);
-      const canvas = await html2canvas(reportElement, { scale: 3, backgroundColor: "#ffffff", useCORS: true });
+      const canvas = await html2canvas(reportElement, { scale: 2.4, backgroundColor: "#ffffff", useCORS: true });
       const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "letter" });
       const margin = 24;
       const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
       const usableWidth = pageWidth - margin * 2;
+      const usableHeight = pageHeight - margin * 2;
       const imageHeight = (canvas.height * usableWidth) / canvas.width;
+      const imageData = canvas.toDataURL("image/png");
 
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, margin, usableWidth, imageHeight);
-      pdf.save(`${reportTab}_${sanitizeFilename(date)}_shift_${shift}.pdf`);
+      let heightLeft = imageHeight;
+      let position = margin;
+      pdf.addImage(imageData, "PNG", margin, position, usableWidth, imageHeight);
+      heightLeft -= usableHeight;
+
+      while (heightLeft > 0) {
+        pdf.addPage();
+        position = margin - (imageHeight - heightLeft);
+        pdf.addImage(imageData, "PNG", margin, position, usableWidth, imageHeight);
+        heightLeft -= usableHeight;
+      }
+
+      const linePart = reportTab === "line" ? `_line_${selectedLine}` : "";
+      pdf.save(`${reportTab}${linePart}_${sanitizeFilename(date)}_shift_${shift}.pdf`);
     } catch (error) {
       console.error(error);
       window.alert("Could not create the PDF.");
@@ -1058,317 +1240,91 @@ const removeBatchMaterial = (id) => {
     }
   };
 
-  const selectLine = (line) => {
-    setSelectedLine(String(line));
-    setScreen("entry");
-  };
-
-  const moveLine = (direction) => {
-    const currentIndex = LINE_NUMBERS.indexOf(Number(selectedLine));
-    if (currentIndex < 0) return;
-
-    const nextIndex = currentIndex + direction;
-    if (nextIndex < 0 || nextIndex >= LINE_NUMBERS.length) return;
-
-    setSelectedLine(String(LINE_NUMBERS[nextIndex]));
-  };
-
-  const moveScreen = (direction) => {
-    const currentIndex = SCREENS.indexOf(screen);
-    const nextScreen = SCREENS[currentIndex + direction];
-    if (nextScreen) setScreen(nextScreen);
-  };
-
-  const handleTouchEnd = (event) => {
-    if (touchStartX == null) return;
-
-    const endX = event.changedTouches[0].clientX;
-    const deltaX = touchStartX - endX;
-
-    if (Math.abs(deltaX) > 60) {
-      if (deltaX > 0) moveScreen(1);
-      if (deltaX < 0) moveScreen(-1);
-    }
-
-    setTouchStartX(null);
-  };
-
-  const sharedEntryProps = {
-    selectedLine,
-    selected,
-    entryTab,
-    setEntryTab,
-    moveLine,
-    updateOperator,
-    addBatch,
-    updateBatch,
-    removeBatch,
-    handleDeleteBatch,
-    confirmDeleteBatchId,
-    draftNote,
-    setDraftNote,
-    draftAction,
-    setDraftAction,
-    draftDie,
-    setDraftDie,
-    addNote,
-    deleteNote,
-    addBatchTroubleshoot,
-    addBatchMaterial,
-    updateTroubleshootNote,
-    updateMaterial,
-    updateBatchMaterial,
-    removeBatchMaterial,
-    deleteNote,
-    newCoexNumber,
-    setNewCoexNumber,
-    addMaterial,
-    removeMaterial,
-    removeBatchMaterial,
-    updateMaterial,
-    addCoex,
-    updateCoex,
-    removeCoex,
-  };
-
-  const sharedReportProps = {
-    data,
-    date,
-    shift,
-    exportReportPdf,
-    isExporting,
-  };
-
   return (
-    <div style={styles.page} onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)} onTouchEnd={handleTouchEnd}>
-     <div style={{ ...styles.container, position: "relative", paddingTop: 50 }}>
-      <div
-  style={{
-    position: "absolute",
-    top: 10,
-    right: 10,
-    width: "auto",
-    justifyContent: "flex-end",
-    width: "100%",
-    display: "flex",
-    justifyContent: "center",
-    zIndex: 55
-  }}
->
-  <button
-    onClick={() => setScreen("lines")}
-  style={{
-    ...styles.button,
-    ...styles.smallButton,
-    position: "absolute",
-    top: -1,
-    right: 0,
-    zIndex: 55
-  }}
->
-  Home
-  </button>
-</div>
-      {/* Menu Button */}
-<button
-  onClick={() => setMenuOpen(!menuOpen)}
-  style={{
-    ...styles.button,
-    ...styles.smallButton,
-    position: "absolute",
-    top: 10,
-    left: 10,
-    zIndex: 60
-  }}
->
-  ☰
-</button>
+    <div className="app-shell">
+      <AppHeader
+        date={date}
+        shift={shift}
+        screen={screen}
+        onDateChange={changeDate}
+        onShiftChange={setShift}
+        onScreenChange={setScreen}
+        menuOpen={menuOpen}
+        setMenuOpen={setMenuOpen}
+      />
+
+      <MobileDrawer
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        screen={screen}
+        onScreenChange={setScreen}
+        reportTab={reportTab}
+        onReportTabChange={setReportTab}
+      />
+
+      <main className="app-main">
         {screen === "lines" && (
           <LinesScreen
-            date={date}
-            shift={shift}
             data={data}
             selectedLine={selectedLine}
-            onDateChange={setDate}
-            onShiftChange={setShift}
             onSelectLine={selectLine}
+            onOpenLineReport={openLineReport}
           />
         )}
 
-        {screen === "entry" && <EntryScreen {...sharedEntryProps} />}
+        {screen === "entry" && (
+          <EntryScreen
+            selectedLine={selectedLine}
+            selected={selected}
+            entryTab={entryTab}
+            onEntryTabChange={setEntryTab}
+            onMoveLine={moveLine}
+            onOpenLineReport={openLineReport}
+            updateOperator={updateOperator}
+            addBatch={addBatch}
+            updateBatch={updateBatch}
+            removeBatch={removeBatch}
+            addBatchMaterial={addBatchMaterial}
+            updateBatchMaterial={updateBatchMaterial}
+            removeBatchMaterial={removeBatchMaterial}
+            addBatchNote={addBatchNote}
+            updateNote={updateNote}
+            deleteNote={deleteNote}
+            addMaterial={addMaterial}
+            updateMaterial={updateMaterial}
+            removeMaterial={removeMaterial}
+            newCoexNumber={newCoexNumber}
+            setNewCoexNumber={setNewCoexNumber}
+            addCoex={addCoex}
+            updateCoex={updateCoex}
+            removeCoex={removeCoex}
+            draftNote={draftNote}
+            setDraftNote={setDraftNote}
+            draftAction={draftAction}
+            setDraftAction={setDraftAction}
+            draftDie={draftDie}
+            setDraftDie={setDraftDie}
+            draftResult={draftResult}
+            setDraftResult={setDraftResult}
+            addLineNote={addLineNote}
+          />
+        )}
 
-        {screen === "report" && <ReportScreen reportTab={reportTab} setReportTab={setReportTab} {...sharedReportProps} />}
-
-</div>
-      {/* Overlay + Slide Panel */}
-<>
-  <div
-    onClick={() => setMenuOpen(false)}
-    style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      width: "100%",
-      height: "100%",
-      background: "rgba(0,0,0,0.3)",
-      zIndex: 40,
-      display: menuOpen ? "block" : "none"
-    }}
-  />
-
-  <div
-    style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      height: "100%",
-      width: 260,
-      background: "#fff",
-      padding: 15,
-      zIndex: 50,
-      boxShadow: "2px 0 10px rgba(0,0,0,.2)",
-      transform: menuOpen ? "translateX(0)" : "translateX(-100%)",
-      transition: "transform 0.25s ease"
-    }}
-  >
-{menuMode === "main" && (
-  <>
-    <label style={styles.label}>Date</label>
-    <input
-      type="date"
-      value={date}
-      onChange={(e) => setDate(e.target.value)}
-      style={styles.input}
-    />
-
-    <label style={{ ...styles.label, marginTop: 12 }}>Shift</label>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-      {SHIFT_OPTIONS.map((s) => (
-        <button
-          key={s}
-          onClick={() => setShift(s)}
-          style={{
-            ...styles.button,
-            ...(shift === s ? styles.buttonPrimary : {}),
-            fontSize: 12,
-            minHeight: 32
-          }}
-        >
-          {s}
-        </button>
-      ))}
-    </div>
-<div style={{ marginTop: 20 }}>
-  <button
-    onClick={() => setMenuMode("entry")}
-    style={{
-      ...styles.button,
-      width: "100%",
-      justifyContent: "center"
-    }}
-  >
-    Entry
-  </button>
-</div>
-    <div style={{ marginTop: 20 }}>
-      <button
-        onClick={() => setMenuMode("reports")}
-        style={{
-          ...styles.button,
-          width: "100%",
-          justifyContent: "center"
-        }}
-      >
-        Reports
-      </button>
-    </div>
-  </>
-)}
-{menuMode === "entry" && (
-  <>
-    <div style={{ marginBottom: 12 }}>
-      <button
-        onClick={() => setMenuMode("main")}
-        style={{ ...styles.button, ...styles.smallButton }}
-      >
-        ← Back
-      </button>
-    </div>
-
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <button
-        onClick={() => {
-          setEntryTab("schedule");
-          setScreen("entry");
-          setMenuOpen(false);
-        }}
-        style={styles.button}
-      >
-        Schedule
-      </button>
-
-      <button
-        onClick={() => {
-          setEntryTab("materials");
-          setScreen("entry");
-          setMenuOpen(false);
-        }}
-        style={styles.button}
-      >
-        Materials
-      </button>
-    </div>
-  </>
-)}
-{menuMode === "reports" && (
-  <>
-    <div style={{ marginBottom: 12 }}>
-      <button
-        onClick={() => setMenuMode("main")}
-        style={{ ...styles.button, ...styles.smallButton }}
-      >
-        ← Back
-      </button>
-    </div>
-
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <button
-        onClick={() => {
-          setReportTab("schedule");
-          setScreen("report");
-          setMenuOpen(false);
-        }}
-        style={styles.button}
-      >
-        Schedule
-      </button>
-
-      <button
-        onClick={() => {
-          setReportTab("materials");
-          setScreen("report");
-          setMenuOpen(false);
-        }}
-        style={styles.button}
-      >
-        Materials
-      </button>
-
-      <button
-        onClick={() => {
-          setReportTab("troubleshoot");
-          setScreen("report");
-          setMenuOpen(false);
-        }}
-        style={styles.button}
-      >
-        Troubleshoot
-      </button>
-    </div>
-  </>
-)}
-</div>
-</>
+        {screen === "reports" && (
+          <ReportsScreen
+            data={data}
+            date={date}
+            shift={shift}
+            selectedLine={selectedLine}
+            setSelectedLine={setSelectedLine}
+            reportTab={reportTab}
+            setReportTab={setReportTab}
+            onExportPdf={exportReportPdf}
+            onPrint={() => window.print()}
+            isExporting={isExporting}
+          />
+        )}
+      </main>
     </div>
   );
 }
