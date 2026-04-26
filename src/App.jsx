@@ -16,7 +16,7 @@ const LINE_GROUPS = [
 
 const styles = {
   page: { minHeight: "100svh", background: "#cbd5e1", color: "#0f172a", fontFamily: "Arial, sans-serif", boxSizing: "border-box" },
-  appFrame: { width: "100%", maxWidth: 430, minHeight: "100svh", margin: "0 auto", position: "relative", overflow: "hidden", background: "#f1f5f9" },
+  appFrame: { width: "100%", maxWidth: 430, minHeight: "100svh", margin: "0 auto", position: "relative", overflow: "visible", background: "#f1f5f9" },
   homeHeader: { display: "flex", alignItems: "center", marginBottom: 10 },
   menuButton: { minHeight: 42, border: "1px solid #0f172a", background: "#0f172a", color: "#fff", borderRadius: 14, padding: "8px 10px", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 },
   menuScrim: { position: "absolute", top: 62, right: 0, bottom: 0, left: 0, zIndex: 30, border: 0, padding: 0, background: "rgba(15, 23, 42, .24)", cursor: "pointer" },
@@ -652,16 +652,15 @@ function EntryScreen(props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <Card style={{ position: "sticky", top: 0, zIndex: 25 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "auto minmax(0, 1fr) auto", gap: 8, alignItems: "center" }}>
-          <Button small onClick={goHome}>
+      <Card style={{ position: "sticky", top: 0, zIndex: 60 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr) 92px", gap: 8, alignItems: "center" }}>
+          <Button small onClick={goHome} aria-label="Home" style={{ width: 42, justifySelf: "start" }}>
             <Home size={16} aria-hidden="true" />
-            Home
           </Button>
 
           <div style={{ fontWeight: 800, fontSize: 18, textAlign: "center" }}>Line {selectedLine}</div>
 
-          <Button small onClick={addBatch}>+ Add Batch</Button>
+          <Button small onClick={addBatch} style={{ justifySelf: "stretch" }}>Add Batch</Button>
         </div>
       </Card>
 
