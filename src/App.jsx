@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import { Clock, Home, Menu, Minus, Pencil, Plus, Settings, X } from "lucide-react";
 
 const LINE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 25, 26, 27, 28, 29, 30, 31];
@@ -2838,8 +2836,10 @@ export default function App() {
 
     try {
       setIsExporting(true);
+      const [{ default: html2canvas }, jspdfModule] = await Promise.all([import("html2canvas"), import("jspdf")]);
+      const JsPDF = jspdfModule.default || jspdfModule.jsPDF;
       const canvas = await html2canvas(reportElement, { scale: 3, backgroundColor: isPrintableReport ? "#ffffff" : "#10181c", useCORS: true });
-      const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "letter" });
+      const pdf = new JsPDF({ orientation: "p", unit: "pt", format: "letter" });
       const margin = 24;
       const pageWidth = pdf.internal.pageSize.getWidth();
       const usableWidth = pageWidth - margin * 2;
