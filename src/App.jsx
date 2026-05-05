@@ -1,12 +1,54 @@
 import { useEffect, useMemo, useState } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-import { FileText, Home, Menu, Settings, X } from "lucide-react";
+import { Clock, Home, Menu, Minus, Pencil, Plus, Settings, X } from "lucide-react";
 
 const LINE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 25, 26, 27, 28, 29, 30, 31];
 const SHIFT_OPTIONS = ["A", "B", "C"];
-const TABS = ["schedule", "troubleshoot", "materials"];
+const REPORT_TABS = ["schedule", "materials", "troubleshoot", "full"];
 const SCREENS = ["lines", "entry", "report"];
+const ACTIVE_DATE_STORAGE_KEY = "work-notes-active-date";
+const ACTIVE_SHIFT_STORAGE_KEY = "work-notes-active-shift";
+const LINE_VISIBILITY_STORAGE_KEY = "work-notes-line-visibility";
+const UI_COLLAPSE_STORAGE_KEY = "work-notes-ui-collapse";
+const DIE_SETTINGS_STORAGE_KEY = "work-notes-die-settings";
+const ACTION_TYPE_TEMP_ADJUSTMENT = "tempAdjustment";
+const ACTION_TYPE_OTHER = "other";
+const ACTION_TYPE_OPTIONS = [
+  [ACTION_TYPE_TEMP_ADJUSTMENT, "Temp Adjustment"],
+  [ACTION_TYPE_OTHER, "Other"],
+];
+const ACTION_TYPE_MENU_OPTIONS = [[ACTION_TYPE_TEMP_ADJUSTMENT, "Temp Adjustment"]];
+const CALCULATOR_GRAM_RPM = "gramRpm";
+const CALCULATOR_GRAM_LINE_SPEED = "gramLineSpeed";
+const CALCULATOR_CUT_TIMER = "cutTimer";
+const CALCULATOR_OPTIONS = [
+  [CALCULATOR_GRAM_RPM, "Gram Weight VIA RPMS"],
+  [CALCULATOR_GRAM_LINE_SPEED, "Gram Weight VIA Line Speed"],
+  [CALCULATOR_CUT_TIMER, "Cut Length VIA Timer"],
+];
+const CALCULATOR_FIELDS = {
+  [CALCULATOR_GRAM_RPM]: [
+    ["currentGramPerFoot", "Current Gram/ft"],
+    ["targetGramPerFoot", "Target Gram/ft"],
+    ["currentRpm", "Current RPM"],
+  ],
+  [CALCULATOR_GRAM_LINE_SPEED]: [
+    ["currentGramPerFoot", "Current Gram/ft"],
+    ["targetGramPerFoot", "Target Gram/ft"],
+    ["currentLineSpeed", "Current Line Speed"],
+  ],
+  [CALCULATOR_CUT_TIMER]: [
+    ["currentCutLength", "Current Cut Length"],
+    ["currentCutTime", "Current Cut Time"],
+    ["targetCutLength", "Target Cut Length"],
+  ],
+};
+const CALCULATOR_RESULTS = {
+  [CALCULATOR_GRAM_RPM]: "New RPM",
+  [CALCULATOR_GRAM_LINE_SPEED]: "New Line Speed",
+  [CALCULATOR_CUT_TIMER]: "New Timer Result",
+};
 
 const LINE_GROUPS = [
   { name: "Flex", lines: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
@@ -25,62 +67,64 @@ const TEMPERATURE_FIELDS = [
   ["die", "Die"],
 ];
 
-const PROCESS_SETTING_GROUPS = [
-  [
-    ["vacuum", "Vacuum"],
-    ["cooling", "Cooling"],
-  ],
-  [
-    ["puller", "Puller"],
-    ["lineSpeed", "Line Speed"],
-    ["cutLength", "Cut Length"],
-    ["perContainer", "Per Container"],
-  ],
-  [
-    ["cutter", "Cutter"],
-    ["offline", "Offline"],
-    ["packing", "Packing"],
-  ],
+const DIE_NUMBER_FIELD = ["dieNumber", "Die #"];
+
+const PROCESS_SETTING_FIELDS = [
+  ["vacuum", "Vacuum"],
+  ["cooling", "Cooling"],
+  ["puller", "Puller"],
+  ["cutter", "Cutter"],
+  ["offline", "Offline"],
+  ["packing", "Packing"],
 ];
 
 const PRODUCTION_SETTING_FIELDS = [
   ["gramWeight", "Gram Weight"],
-  ["unitsProduced", "Units Produced"],
-  ["containersProduced", "Containers Produced"],
+  ["settingsLineSpeed", "Line Speed"],
+  ["rpms", "RPM's"],
 ];
 
-const TIME_SETTING_FIELDS = [
-  ["setupTime", "Set Up Time"],
-  ["startupTime", "Start Up Time"],
-  ["savingTime", "Saving Time"],
+const DIE_SETTING_FIELDS = [
+  DIE_NUMBER_FIELD,
+  ...TEMPERATURE_FIELDS,
+  ...PROCESS_SETTING_FIELDS,
+  ...PRODUCTION_SETTING_FIELDS,
+];
+
+const LINE_RATE_FIELDS = [
+  ["lineSpeed", "Line Speed"],
+  ["cutLength", "Cut Length"],
+  ["perContainer", "Per Container"],
+  ["currentContainer", "Current Container"],
+  ["totalContainers", "Total Containers"],
 ];
 
 const ALL_SETTING_FIELDS = [
+  DIE_NUMBER_FIELD,
   ...TEMPERATURE_FIELDS,
   ["cooling", "Cooling"],
   ["vacuum", "Vacuum"],
   ["puller", "Puller"],
-  ["lineSpeed", "Line Speed"],
-  ["cutLength", "Cut Length"],
-  ["perContainer", "Per Container"],
+  ...LINE_RATE_FIELDS,
   ["cutter", "Cutter"],
   ["offline", "Offline"],
   ["packing", "Packing"],
   ...PRODUCTION_SETTING_FIELDS,
-  ...TIME_SETTING_FIELDS,
 ];
 
-const fantasyPanel = "linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,0) 28%), linear-gradient(180deg, #1a2528 0%, #10181c 100%)";
-const fantasyButton = "linear-gradient(180deg, #29343a 0%, #151d21 100%)";
-const fantasyInsetShadow = "inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55)";
+const darkPanel = "linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,0) 28%), linear-gradient(180deg, #1a2528 0%, #10181c 100%)";
+const darkButton = "linear-gradient(180deg, #29343a 0%, #151d21 100%)";
+const insetShadow = "inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55)";
+const appFont = "Georgia, 'Times New Roman', serif";
 
 const styles = {
   page: {
     minHeight: "100svh",
     background: "#0a0f12",
-    backgroundImage: "linear-gradient(90deg, #050708 0%, #101b21 50%, #050708 100%)",
+    backgroundImage:
+      "linear-gradient(90deg, #050708 0%, #101b21 50%, #050708 100%), repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 10px, transparent 10px 22px)",
     color: "#f1dfb6",
-    fontFamily: "Georgia, 'Times New Roman', serif",
+    fontFamily: appFont,
     boxSizing: "border-box",
   },
   appFrame: {
@@ -98,11 +142,11 @@ const styles = {
     borderRight: "1px solid #2b241b",
     boxShadow: "0 0 0 1px #050708, 0 22px 80px rgba(0,0,0,.52)",
   },
-  homeHeader: { display: "flex", alignItems: "center", marginBottom: 10 },
+  homeHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 },
   menuButton: {
     minHeight: 42,
     border: "1px solid #8d6b3c",
-    background: fantasyButton,
+    background: darkButton,
     color: "#f6e4b7",
     borderRadius: 8,
     padding: "8px 10px",
@@ -113,7 +157,21 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    boxShadow: `${fantasyInsetShadow}, 0 2px 0 #050708`,
+    boxShadow: `${insetShadow}, 0 2px 0 #050708`,
+  },
+  editIconButton: {
+    width: 42,
+    minHeight: 42,
+    border: "1px solid #8d6b3c",
+    background: darkButton,
+    color: "#f6e4b7",
+    borderRadius: 8,
+    padding: 0,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: `${insetShadow}, 0 2px 0 #050708`,
   },
   menuScrim: { position: "absolute", top: 62, right: 0, bottom: 0, left: 0, zIndex: 30, border: 0, padding: 0, background: "rgba(0, 0, 0, .48)", cursor: "pointer" },
   sidePanel: {
@@ -134,22 +192,7 @@ const styles = {
     borderRight: "1px solid #8d6b3c",
     boxShadow: "10px 0 28px rgba(0,0,0,.42), inset -1px 0 0 rgba(255,255,255,.08)",
   },
-  sideHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 },
-  sideTitle: { fontSize: 15, fontWeight: 900, color: "#e2bd73", textShadow: "0 1px 0 #000" },
   sideSection: { display: "grid", gap: 8, paddingBottom: 8, marginBottom: 2, borderBottom: "1px solid rgba(202,165,107,.34)" },
-  sideCloseButton: {
-    width: 36,
-    height: 36,
-    border: "1px solid #7b6038",
-    borderRadius: 8,
-    background: fantasyButton,
-    color: "#f6e4b7",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: fantasyInsetShadow,
-  },
   sideButton: {
     width: "100%",
     minHeight: 48,
@@ -165,9 +208,10 @@ const styles = {
     alignItems: "center",
     justifyContent: "flex-start",
     gap: 8,
-    boxShadow: fantasyInsetShadow,
+    boxShadow: insetShadow,
   },
   sideButtonActive: { background: "linear-gradient(180deg, #1d4c49, #122c2f)", color: "#ffe7ae", borderColor: "#d0a661" },
+  sideFooter: { marginTop: "auto", paddingTop: 10, borderTop: "1px solid rgba(202,165,107,.34)" },
   reportScrim: { position: "absolute", top: 62, right: 0, bottom: 0, left: 0, zIndex: 40, border: 0, padding: 0, background: "rgba(0,0,0,.5)", cursor: "pointer" },
   secondaryPanel: {
     position: "absolute",
@@ -193,29 +237,29 @@ const styles = {
     height: 36,
     border: "1px solid #7b6038",
     borderRadius: 8,
-    background: fantasyButton,
+    background: darkButton,
     color: "#f6e4b7",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
-    boxShadow: fantasyInsetShadow,
+    boxShadow: insetShadow,
   },
   container: { width: "100%", minWidth: 0, padding: 10, boxSizing: "border-box" },
   card: {
-    background: fantasyPanel,
+    background: darkPanel,
     border: "1px solid #6c5230",
     borderRadius: 8,
     color: "#f1dfb6",
-    boxShadow: `${fantasyInsetShadow}, 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28)`,
+    boxShadow: `${insetShadow}, 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28)`,
   },
   reportCard: {
-    background: fantasyPanel,
+    background: darkPanel,
     border: "1px solid #6c5230",
     borderRadius: 8,
     color: "#f1dfb6",
-    boxShadow: `${fantasyInsetShadow}, 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28)`,
-    fontFamily: "Georgia, 'Times New Roman', serif",
+    boxShadow: `${insetShadow}, 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28)`,
+    fontFamily: appFont,
   },
   printableReportCard: { background: "#fff", border: "1px solid #000", borderRadius: 0, color: "#000", boxShadow: "none", fontFamily: "Arial, sans-serif" },
   cardBody: { padding: 12 },
@@ -249,7 +293,7 @@ const styles = {
   },
   button: {
     border: "1px solid #8d6b3c",
-    background: fantasyButton,
+    background: darkButton,
     color: "#f3dfad",
     borderRadius: 8,
     padding: "10px 12px",
@@ -261,7 +305,7 @@ const styles = {
     justifyContent: "center",
     gap: 6,
     minHeight: 42,
-    boxShadow: `${fantasyInsetShadow}, 0 2px 0 #050708`,
+    boxShadow: `${insetShadow}, 0 2px 0 #050708`,
   },
   smallButton: { padding: "7px 9px", fontSize: 12, minHeight: 36 },
   buttonPrimary: {
@@ -270,7 +314,7 @@ const styles = {
     border: "1px solid #d0a661",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(0,0,0,.62), 0 0 0 1px rgba(4,7,8,.7)",
   },
-  reportButton: { border: "1px solid #8d6b3c", background: fantasyButton, color: "#f3dfad", borderRadius: 8, boxShadow: `${fantasyInsetShadow}, 0 2px 0 #050708`, fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 800 },
+  reportButton: { border: "1px solid #8d6b3c", background: darkButton, color: "#f3dfad", borderRadius: 8, boxShadow: `${insetShadow}, 0 2px 0 #050708`, fontFamily: appFont, fontWeight: 800 },
   printableReportButton: { border: "1px solid #000", background: "#fff", color: "#000", borderRadius: 3, boxShadow: "none", fontFamily: "Arial, sans-serif", fontWeight: 700 },
   printableReportButtonActive: { border: "1px solid #000", background: "#000", color: "#fff", borderRadius: 3, boxShadow: "none", fontFamily: "Arial, sans-serif", fontWeight: 700 },
   tabGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10, position: "sticky", top: 0, zIndex: 20, background: "#11191d", paddingBottom: 8, borderBottom: "1px solid #6c5230" },
@@ -279,8 +323,10 @@ const styles = {
   panelLineGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5, marginTop: 4 },
   lineColumn: { display: "flex", flexDirection: "column", gap: 6 },
   lineGroupTitle: { fontWeight: 900, textAlign: "left", fontSize: 14, marginBottom: 2, color: "#e2bd73", textShadow: "0 1px 0 #000" },
+  lineGroupButton: { width: "100%", minHeight: 34, padding: "6px 7px", fontSize: 13, justifyContent: "flex-start" },
   panelLineGroupTitle: { fontWeight: 900, textAlign: "left", fontSize: 10, marginBottom: 2, color: "#caa56b" },
   lineButton: { minHeight: 48, fontSize: 18 },
+  lineToggleOff: { opacity: 0.45, borderColor: "#4f3d25", color: "#a39370", background: "linear-gradient(180deg, rgba(35,43,47,.72), rgba(13,18,20,.82))" },
   panelLineButton: { minHeight: 36, padding: "5px 3px", fontSize: 13, borderRadius: 8 },
   shiftGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
   twoColumnGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
@@ -309,7 +355,7 @@ const styles = {
   noteGrid: { display: "grid", gridTemplateColumns: "1fr", gap: 10 },
   subCard: { border: "1px solid #5f4a2c", borderRadius: 8, padding: 10, background: "rgba(7,12,14,.34)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
   coexInset: { borderLeft: "3px solid #8d6b3c", paddingLeft: 8, marginTop: 10 },
-  reportShell: { width: "100%", overflowX: "hidden", background: "#10181c", color: "#f1dfb6", fontFamily: "Georgia, 'Times New Roman', serif" },
+  reportShell: { width: "100%", overflowX: "hidden", background: "#10181c", color: "#f1dfb6", fontFamily: appFont },
   reportHeader: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid #8d6b3c", color: "#e2bd73", textShadow: "0 1px 0 #000" },
   reportBlock: { border: "1px solid #6c5230", borderRadius: 8, padding: 6, marginBottom: 8, background: "rgba(7,12,14,.34)", color: "#f1dfb6", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
   reportHeadRow: { fontSize: 10, fontWeight: 800, borderBottom: "1px solid rgba(202,165,107,.5)", paddingBottom: 3, marginBottom: 5, lineHeight: "12px", color: "#e2bd73" },
@@ -343,6 +389,68 @@ const makeId = () => {
 };
 
 const todayString = () => new Date().toISOString().slice(0, 10);
+const currentTimeString = () => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+};
+const isDateInputValue = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+const getInitialDate = () => {
+  if (typeof localStorage === "undefined") return todayString();
+  const savedDate = localStorage.getItem(ACTIVE_DATE_STORAGE_KEY);
+  return isDateInputValue(savedDate) ? savedDate : todayString();
+};
+const getInitialShift = () => {
+  if (typeof localStorage === "undefined") return "A";
+  const savedShift = localStorage.getItem(ACTIVE_SHIFT_STORAGE_KEY);
+  return SHIFT_OPTIONS.includes(savedShift) ? savedShift : "A";
+};
+const savePreference = (key, value) => {
+  if (typeof localStorage !== "undefined") localStorage.setItem(key, value);
+};
+
+const createLineVisibility = () => Object.fromEntries(LINE_NUMBERS.map((line) => [String(line), true]));
+const normalizeLineVisibility = (lineVisibility) =>
+  Object.fromEntries(LINE_NUMBERS.map((line) => {
+    const lineKey = String(line);
+    return [lineKey, lineVisibility?.[lineKey] !== false];
+  }));
+const loadLineVisibility = () => {
+  if (typeof localStorage === "undefined") return createLineVisibility();
+
+  const saved = localStorage.getItem(LINE_VISIBILITY_STORAGE_KEY);
+  if (!saved) return createLineVisibility();
+
+  try {
+    return normalizeLineVisibility(JSON.parse(saved));
+  } catch (error) {
+    console.error("Could not load line visibility:", error);
+    return createLineVisibility();
+  }
+};
+const isLineVisible = (lineVisibility, line) => lineVisibility[String(line)] !== false;
+const isGroupVisible = (lineVisibility, group) => group.lines.some((line) => isLineVisible(lineVisibility, line));
+
+const createCollapseState = () => ({ lineRate: {}, calculators: {}, notes: {}, troubleshoot: {} });
+const normalizeCollapseGroup = (group) => (group && typeof group === "object" && !Array.isArray(group) ? group : {});
+const normalizeCollapseState = (collapseState) => ({
+  lineRate: normalizeCollapseGroup(collapseState?.lineRate),
+  calculators: normalizeCollapseGroup(collapseState?.calculators),
+  notes: normalizeCollapseGroup(collapseState?.notes),
+  troubleshoot: normalizeCollapseGroup(collapseState?.troubleshoot),
+});
+const loadCollapseState = () => {
+  if (typeof localStorage === "undefined") return createCollapseState();
+
+  const saved = localStorage.getItem(UI_COLLAPSE_STORAGE_KEY);
+  if (!saved) return createCollapseState();
+
+  try {
+    return normalizeCollapseState(JSON.parse(saved));
+  } catch (error) {
+    console.error("Could not load UI collapse state:", error);
+    return createCollapseState();
+  }
+};
 
 const formatDisplayDate = (iso) => {
   if (!iso) return "";
@@ -366,6 +474,22 @@ const hasMaterialContent = (material) =>
     material.additive,
     material.additivePercent,
   ].some(hasText) || material.coexes?.length > 0;
+const hasTroubleshootContent = (note) =>
+  [note.note, note.die].some(hasText) || (note.actions || []).some((action) =>
+    hasText(action.action) ||
+    Object.values(action.temperatureAdjustments || {}).some(hasText) ||
+    action.results?.some((result) => hasText(result.result))
+  );
+const parsePercentNumber = (value) => {
+  const parsed = Number.parseFloat(String(value || "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const formatCalculatedPercent = (value) => value.toFixed(2).replace(/\.?0+$/, "");
+const calculateNaturalPercent = (material) => {
+  const usedPercent = ["colorPercent", "regrindPercent", "additivePercent"].reduce((total, field) => total + parsePercentNumber(material?.[field]), 0);
+  return formatCalculatedPercent(100 - usedPercent);
+};
+const getNaturalPercent = (material) => (hasText(material?.naturalPercent) ? material.naturalPercent : calculateNaturalPercent(material));
 const withPercent = (value, percent) => {
   if (!hasText(percent)) return value;
   const cleanPercent = String(percent).trim();
@@ -376,21 +500,78 @@ const parseSettingNumber = (value) => {
   const parsed = Number.parseFloat(String(value || "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
 };
-const calculateMinutesPerContainer = (temperatures) => {
+const formatCalculatorNumber = (value) => Number(value).toFixed(2).replace(/\.?0+$/, "");
+const formatContainerTime = (minutes) => {
+  if (minutes <= 60) {
+    const displayMinutes = minutes.toFixed(1).replace(/\.0$/, "");
+    return `${displayMinutes} ${displayMinutes === "1" ? "minute" : "minutes"}`;
+  }
+
+  const totalMinutes = Math.round(minutes);
+  const hours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  const hourLabel = hours === 1 ? "hour" : "hours";
+  const minuteLabel = remainingMinutes === 1 ? "minute" : "minutes";
+  return `${hours} ${hourLabel} and ${remainingMinutes} ${minuteLabel} - ${(minutes / 60).toFixed(2)} hr`;
+};
+const calculateTimePerContainerMinutes = (temperatures) => {
   const lineSpeed = parseSettingNumber(temperatures?.lineSpeed);
   const cutLength = parseSettingNumber(temperatures?.cutLength);
   const perContainer = parseSettingNumber(temperatures?.perContainer);
   if (lineSpeed <= 0 || cutLength <= 0 || perContainer <= 0) return "";
-  return ((cutLength * perContainer) / (lineSpeed * 12)).toFixed(1);
+  return (cutLength * perContainer) / (lineSpeed * 12);
 };
-const calculateTotalTime = (temperatures, otherTimes = []) => {
-  const standardTime = TIME_SETTING_FIELDS.reduce((total, [key]) => total + parseSettingNumber(temperatures?.[key]), 0);
-  const extraTime = otherTimes.reduce((total, otherTime) => total + parseSettingNumber(otherTime?.time), 0);
-  const total = standardTime + extraTime;
-  return total > 0 ? total.toFixed(2).replace(/\.?0+$/, "") : "";
+const calculateTimePerContainer = (temperatures) => {
+  const minutes = calculateTimePerContainerMinutes(temperatures);
+  return minutes ? formatContainerTime(minutes) : "";
 };
-const tabLabel = (tab) => (tab === "troubleshoot" ? "Troubleshoot" : tab[0].toUpperCase() + tab.slice(1));
+const calculateTimeUntilDone = (temperatures) => {
+  const minutesPerContainer = calculateTimePerContainerMinutes(temperatures);
+  const totalContainers = parseSettingNumber(temperatures?.totalContainers);
+  if (!minutesPerContainer || totalContainers <= 0) return "";
+
+  const currentContainer = hasText(temperatures?.currentContainer) ? parseSettingNumber(temperatures.currentContainer) : 0;
+  const remainingContainers = Math.max(totalContainers - currentContainer, 0);
+  return formatContainerTime(minutesPerContainer * remainingContainers);
+};
+const getCalculatorTitle = (type) => CALCULATOR_OPTIONS.find(([value]) => value === type)?.[1] || "Calculator";
+const getCalculatorFields = (type) => CALCULATOR_FIELDS[type] || [];
+const getCalculatorResultLabel = (type) => CALCULATOR_RESULTS[type] || "Result";
+const createCalculatorInputs = (type) => Object.fromEntries(getCalculatorFields(type).map(([field]) => [field, ""]));
+const calculateLineCalculatorResult = (calculator) => {
+  const inputs = calculator?.inputs || {};
+  const currentGram = parseSettingNumber(inputs.currentGramPerFoot);
+  const targetGram = parseSettingNumber(inputs.targetGramPerFoot);
+
+  if (calculator?.type === CALCULATOR_GRAM_RPM) {
+    const currentRpm = parseSettingNumber(inputs.currentRpm);
+    if (currentGram <= 0 || targetGram <= 0 || currentRpm <= 0) return "";
+    return `${formatCalculatorNumber((currentRpm * targetGram) / currentGram)} RPM`;
+  }
+
+  if (calculator?.type === CALCULATOR_GRAM_LINE_SPEED) {
+    const currentLineSpeed = parseSettingNumber(inputs.currentLineSpeed);
+    if (currentGram <= 0 || targetGram <= 0 || currentLineSpeed <= 0) return "";
+    return formatCalculatorNumber((currentLineSpeed * currentGram) / targetGram);
+  }
+
+  if (calculator?.type === CALCULATOR_CUT_TIMER) {
+    const currentCutLength = parseSettingNumber(inputs.currentCutLength);
+    const currentCutTime = parseSettingNumber(inputs.currentCutTime);
+    const targetCutLength = parseSettingNumber(inputs.targetCutLength);
+    if (currentCutLength <= 0 || currentCutTime <= 0 || targetCutLength <= 0) return "";
+    return formatCalculatorNumber((currentCutTime * targetCutLength) / currentCutLength);
+  }
+
+  return "";
+};
+const tabLabel = (tab) => {
+  if (tab === "full") return "Daily Report";
+  if (tab === "troubleshoot") return "Troubleshoot";
+  return tab[0].toUpperCase() + tab.slice(1);
+};
 const reportTitle = (reportTab, selectedLine) => (reportTab === "line" ? `Line ${selectedLine}` : tabLabel(reportTab));
+const actionTypeLabel = (actionType) => ACTION_TYPE_OPTIONS.find(([value]) => value === actionType)?.[1] || "Other";
 
 const createCoex = (number = "02") => ({
   id: makeId(),
@@ -420,11 +601,30 @@ const createMaterial = (batchId = "", batch = "", die = "") => ({
   coexes: [],
   confirmed: false,
 });
-const createBatch = () => ({ id: makeId(), batch: "", die: "", itemNumber: "", description: "", quantity: "", confirmed: false });
-const createNote = (batchId = "", die = "") => ({ id: makeId(), batchId, note: "", action: "", result: "", die, confirmed: false });
+const createBatch = () => ({ id: makeId(), batch: "", die: "", description: "", quantity: "", confirmed: false });
+const createBatchWithMaterial = () => {
+  const batch = createBatch();
+  return { batch, material: createMaterial(batch.id, batch.batch, batch.die) };
+};
+const createOperator = (name = "") => ({ id: makeId(), name });
+const createTemperatureAdjustments = () => Object.fromEntries(TEMPERATURE_FIELDS.map(([key]) => [key, ""]));
+const createTroubleshootResult = (result = "", timestamp = currentTimeString()) => ({ id: makeId(), timestamp, result });
+const createTroubleshootAction = (action = "", results = [], actionType = ACTION_TYPE_OTHER, temperatureAdjustments = createTemperatureAdjustments(), timestamp = currentTimeString()) => ({
+  id: makeId(),
+  timestamp,
+  actionType,
+  action,
+  temperatureAdjustments,
+  results,
+});
+const createNote = (batchId = "", die = "") => ({ id: makeId(), batchId, timestamp: currentTimeString(), note: "", actions: [], die, confirmed: false });
+const createSettingsNote = (note = "") => ({ id: makeId(), note });
 const createTemperatures = () => Object.fromEntries(ALL_SETTING_FIELDS.map(([key]) => [key, ""]));
-const createOtherTime = () => ({ id: makeId(), time: "", description: "" });
-const createLineData = () => ({ operator: "", temperatures: createTemperatures(), otherTimes: [], batches: [createBatch()], materials: [], notes: [] });
+const createLineCalculator = (type = CALCULATOR_GRAM_RPM) => ({ id: makeId(), type, inputs: createCalculatorInputs(type) });
+const createLineData = () => {
+  const { batch, material } = createBatchWithMaterial();
+  return { operators: [createOperator()], temperatures: createTemperatures(), otherTimes: [], calculators: [], generalNotes: "", settingsNotes: [createSettingsNote()], batches: [batch], materials: [material], notes: [] };
+};
 const createAllLineData = () => Object.fromEntries(LINE_NUMBERS.map((line) => [String(line), createLineData()]));
 
 const normalizeCoexes = (coexes) => {
@@ -496,25 +696,84 @@ const normalizeBatches = (lineData) => {
     id: batch?.id || makeId(),
     batch: batch?.batch || "",
     die: batch?.die || "",
-    itemNumber: batch?.itemNumber || "",
     description: batch?.description || "",
     quantity: batch?.quantity || "",
     confirmed: Boolean(batch?.confirmed),
   }));
 };
 
+const normalizeTroubleshootResults = (results) => {
+  if (!Array.isArray(results)) return [];
+
+  return results.map((result) => ({
+    id: result?.id || makeId(),
+    timestamp: result?.timestamp || "",
+    result: result?.result || "",
+  }));
+};
+
+const normalizeOperators = (lineData) => {
+  if (Array.isArray(lineData?.operators) && lineData.operators.length > 0) {
+    return lineData.operators.map((operator) => ({
+      id: operator?.id || makeId(),
+      name: typeof operator === "string" ? operator : operator?.name || "",
+    }));
+  }
+
+  if (hasText(lineData?.operator)) return [createOperator(lineData.operator)];
+  return [createOperator()];
+};
+
+const normalizeTemperatureAdjustments = (temperatureAdjustments) => ({
+  ...createTemperatureAdjustments(),
+  ...Object.fromEntries(TEMPERATURE_FIELDS.map(([key]) => [key, temperatureAdjustments?.[key] || ""])),
+});
+
+const normalizeTroubleshootActions = (actions) => {
+  if (!Array.isArray(actions)) return [];
+
+  return actions.map((action) => ({
+    id: action?.id || makeId(),
+    timestamp: action?.timestamp || "",
+    actionType: action?.actionType || action?.type || ACTION_TYPE_OTHER,
+    action: action?.action || "",
+    temperatureAdjustments: normalizeTemperatureAdjustments(action?.temperatureAdjustments),
+    results: normalizeTroubleshootResults(action?.results),
+  }));
+};
+
 const normalizeNotes = (notes) => {
   if (!Array.isArray(notes)) return [];
 
-  return notes.map((note) => ({
-    id: note?.id || makeId(),
-    batchId: note?.batchId || "",
-    note: note?.note || note?.issue || "",
-    action: note?.action || "",
-    result: note?.result || "",
-    die: note?.die || "",
-    confirmed: Boolean(note?.confirmed),
-  }));
+  return notes.map((note) => {
+    const actions = normalizeTroubleshootActions(note?.actions);
+    const migratedActions = actions.length || (!hasText(note?.action) && !hasText(note?.result))
+      ? actions
+      : [createTroubleshootAction(note?.action || "", hasText(note?.result) ? [createTroubleshootResult(note.result)] : [], ACTION_TYPE_OTHER)];
+
+    return {
+      id: note?.id || makeId(),
+      batchId: note?.batchId || "",
+      timestamp: note?.timestamp || "",
+      note: note?.note || note?.issue || "",
+      actions: migratedActions,
+      die: note?.die || "",
+      confirmed: Boolean(note?.confirmed),
+    };
+  });
+};
+
+const normalizeSettingsNotes = (settingsNotes) => {
+  if (Array.isArray(settingsNotes)) {
+    const notes = settingsNotes.map((note) => ({
+      id: note?.id || makeId(),
+      note: typeof note === "string" ? note : note?.note || "",
+    }));
+    return notes.length ? notes : [createSettingsNote()];
+  }
+
+  if (hasText(settingsNotes)) return [createSettingsNote(settingsNotes)];
+  return [createSettingsNote()];
 };
 
 const normalizeTemperatures = (temperatures) => ({
@@ -522,6 +781,70 @@ const normalizeTemperatures = (temperatures) => ({
   ...Object.fromEntries(ALL_SETTING_FIELDS.map(([key]) => [key, temperatures?.[key] || ""])),
   lineSpeed: temperatures?.lineSpeed || temperatures?.likespeed || "",
 });
+const normalizeDieSettingTemperatures = (temperatures) =>
+  Object.fromEntries(DIE_SETTING_FIELDS.map(([key]) => [key, temperatures?.[key] || ""]));
+const normalizeDieSetting = (setting) => {
+  const temperatures = normalizeDieSettingTemperatures(setting?.temperatures || setting);
+  const dieNumber = String(setting?.dieNumber || temperatures.dieNumber || "").trim();
+
+  return {
+    id: setting?.id || makeId(),
+    dieNumber,
+    temperatures: { ...temperatures, dieNumber },
+    settingsNotes: normalizeSettingsNotes(setting?.settingsNotes || setting?.notes),
+    savedAt: setting?.savedAt || "",
+  };
+};
+const sortDieSettings = (settings) =>
+  [...settings].sort((first, second) => {
+    const dieSort = first.dieNumber.localeCompare(second.dieNumber, undefined, { numeric: true, sensitivity: "base" });
+    if (dieSort !== 0) return dieSort;
+    return String(second.savedAt || "").localeCompare(String(first.savedAt || ""));
+  });
+const normalizeDieSettings = (settings) => {
+  if (!Array.isArray(settings)) return [];
+  return sortDieSettings(settings.map(normalizeDieSetting).filter((setting) => hasText(setting.dieNumber)));
+};
+const loadDieSettings = () => {
+  if (typeof localStorage === "undefined") return [];
+
+  const saved = localStorage.getItem(DIE_SETTINGS_STORAGE_KEY);
+  if (!saved) return [];
+
+  try {
+    return normalizeDieSettings(JSON.parse(saved));
+  } catch (error) {
+    console.error("Could not load die settings:", error);
+    return [];
+  }
+};
+const createDieSettingFromLineData = (lineData) => {
+  const temperatures = normalizeDieSettingTemperatures(lineData?.temperatures);
+  const dieNumber = String(temperatures.dieNumber || "").trim();
+
+  return {
+    id: makeId(),
+    dieNumber,
+    temperatures: { ...temperatures, dieNumber },
+    settingsNotes: normalizeSettingsNotes(lineData?.settingsNotes),
+    savedAt: new Date().toISOString(),
+  };
+};
+const applyDieSettingToLineData = (lineData, setting) => {
+  const normalizedSetting = normalizeDieSetting(setting);
+
+  return {
+    ...lineData,
+    temperatures: { ...createTemperatures(), ...lineData.temperatures, ...normalizedSetting.temperatures },
+    settingsNotes: normalizeSettingsNotes(normalizedSetting.settingsNotes),
+  };
+};
+const formatSavedAt = (savedAt) => {
+  if (!savedAt) return "";
+  const savedDate = new Date(savedAt);
+  if (Number.isNaN(savedDate.getTime())) return "";
+  return `${savedDate.getMonth() + 1}-${savedDate.getDate()}-${savedDate.getFullYear()}`;
+};
 const normalizeOtherTimes = (otherTimes) => {
   if (!Array.isArray(otherTimes)) return [];
   return otherTimes.map((otherTime) => ({
@@ -530,18 +853,50 @@ const normalizeOtherTimes = (otherTimes) => {
     description: otherTime?.description || "",
   }));
 };
+const normalizeLineCalculators = (calculators) => {
+  if (!Array.isArray(calculators)) return [];
+
+  return calculators
+    .filter((calculator) => CALCULATOR_FIELDS[calculator?.type])
+    .map((calculator) => ({
+      id: calculator?.id || makeId(),
+      type: calculator.type,
+      inputs: {
+        ...createCalculatorInputs(calculator.type),
+        ...Object.fromEntries(getCalculatorFields(calculator.type).map(([field]) => [field, calculator?.inputs?.[field] || ""])),
+      },
+    }));
+};
+
+const isMaterialForBatch = (material, batch, index) => material.batchId === batch.id || (!material.batchId && index === 0 && hasMaterialContent(material));
+const ensureMaterialsForBatches = (batches, materials) => {
+  const ensuredMaterials = [...materials];
+
+  batches.forEach((batch, index) => {
+    const hasBatchMaterial = ensuredMaterials.some((material) => isMaterialForBatch(material, batch, index));
+    if (!hasBatchMaterial) ensuredMaterials.push(createMaterial(batch.id, batch.batch, batch.die));
+  });
+
+  return ensuredMaterials;
+};
 
 const normalizeSavedData = (savedData) => {
   const base = createAllLineData();
 
   Object.entries(savedData || {}).forEach(([line, lineData]) => {
     if (!base[line]) return;
+    const batches = normalizeBatches(lineData);
+    const materials = ensureMaterialsForBatches(batches, normalizeMaterials(lineData?.materials));
+
     base[line] = {
-      operator: lineData?.operator || "",
+      operators: normalizeOperators(lineData),
       temperatures: normalizeTemperatures(lineData?.temperatures),
       otherTimes: normalizeOtherTimes(lineData?.otherTimes),
-      batches: normalizeBatches(lineData),
-      materials: normalizeMaterials(lineData?.materials),
+      calculators: normalizeLineCalculators(lineData?.calculators),
+      generalNotes: lineData?.generalNotes || "",
+      settingsNotes: normalizeSettingsNotes(lineData?.settingsNotes),
+      batches,
+      materials,
       notes: normalizeNotes(lineData?.notes),
     };
   });
@@ -563,7 +918,8 @@ const loadSavedData = (workDate) => {
   }
 };
 
-const getFilledBatches = (lineData) => lineData.batches.filter((batch) => hasText(batch.batch) || hasText(batch.die) || hasText(batch.itemNumber) || hasText(batch.description) || hasText(batch.quantity));
+const getFilledBatches = (lineData) => lineData.batches.filter((batch) => hasText(batch.batch) || hasText(batch.die) || hasText(batch.description) || hasText(batch.quantity));
+const getOperatorText = (lineData) => normalizeOperators(lineData).map((operator) => operator.name).filter(hasText).join(", ");
 
 const getMaterialRowsForReport = (line, lineData) => {
   const rows = [];
@@ -579,7 +935,7 @@ const getMaterialRowsForReport = (line, lineData) => {
       label: materialIndex === 0 ? line : "",
       die: material.die || linkedBatch?.die || (materialIndex === 0 ? fallbackDie : ""),
       batch: material.batch || linkedBatch?.batch || "",
-      natural: withPercent(material.natural, material.naturalPercent),
+      natural: withPercent(material.natural, getNaturalPercent(material)),
       color: withPercent(material.color, material.colorPercent),
       regrind: withPercent(material.regrind, material.regrindPercent),
       additive: withPercent(material.additive, material.additivePercent),
@@ -590,10 +946,64 @@ const getMaterialRowsForReport = (line, lineData) => {
         label: `Coex${String(coex.number).padStart(2, "0")}`,
         die: "",
         batch: "",
-        natural: withPercent(coex.natural, coex.naturalPercent),
+        natural: withPercent(coex.natural, getNaturalPercent(coex)),
         color: withPercent(coex.color, coex.colorPercent),
         regrind: withPercent(coex.regrind, coex.regrindPercent),
         additive: withPercent(coex.additive, coex.additivePercent),
+      });
+    });
+  });
+
+  return rows;
+};
+
+const formatTemperatureAdjustmentSummary = (action, temperatures = {}) =>
+  TEMPERATURE_FIELDS.map(([key, label]) => {
+    const change = action.temperatureAdjustments?.[key];
+    if (!hasText(change)) return "";
+    const current = temperatures?.[key];
+    return hasText(current) ? `${label} ${current} to ${change}` : `${label} to ${change}`;
+  }).filter(hasText).join("; ");
+
+const formatTroubleshootAction = (action, temperatures = {}) => {
+  if (action.actionType !== ACTION_TYPE_TEMP_ADJUSTMENT) return action.action || "";
+
+  const parts = [actionTypeLabel(action.actionType), action.action, formatTemperatureAdjustmentSummary(action, temperatures)];
+  return parts.filter(hasText).join(": ");
+};
+
+const getTroubleshootRowsForLine = (line, lineData) => {
+  const rows = [];
+  const firstDie = lineData.batches?.[0]?.die || "";
+  const batchesById = new Map((lineData.batches || []).map((batch) => [batch.id, batch]));
+
+  lineData.notes.forEach((note) => {
+    if (!hasTroubleshootContent(note)) return;
+
+    const linkedBatch = batchesById.get(note.batchId);
+    const die = linkedBatch?.die || note.die || firstDie;
+    const actions = note.actions || [];
+    let isIssueStart = true;
+    const pushIssueRow = (row) => {
+      rows.push({ ...row, noteId: note.id, issueStart: isIssueStart });
+      isIssueStart = false;
+    };
+
+    if (!actions.length) {
+      pushIssueRow({ line, die, issue: note.note || "", action: "", result: "", id: note.id });
+      return;
+    }
+
+    actions.forEach((action) => {
+      const actionText = formatTroubleshootAction(action, lineData.temperatures);
+
+      if (!action.results?.length) {
+        pushIssueRow({ line, die, issue: note.note || "", action: actionText, result: "", id: `${note.id}-${action.id}` });
+        return;
+      }
+
+      action.results.forEach((result) => {
+        pushIssueRow({ line, die, issue: note.note || "", action: actionText, result: result.result || "", id: `${note.id}-${action.id}-${result.id}` });
       });
     });
   });
@@ -631,6 +1041,49 @@ function Field({ label, value, onChange, textarea = false, type = "text" }) {
   );
 }
 
+function TimestampInput({ value, onChange, label }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [hasStamped, setHasStamped] = useState(false);
+
+  const handleClick = () => {
+    if (!hasStamped) {
+      onChange(currentTimeString());
+      setHasStamped(true);
+      return;
+    }
+
+    setIsEditing(true);
+  };
+
+  if (isEditing) {
+    return (
+      <input
+        type="time"
+        aria-label={label}
+        value={value || ""}
+        autoFocus
+        onBlur={() => setIsEditing(false)}
+        onChange={(event) => onChange(event.target.value)}
+        style={{ ...styles.button, ...styles.smallButton, width: 96, padding: "7px 8px", colorScheme: "dark", textAlign: "center" }}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={value ? `${label}: ${value}` : label}
+      onClick={handleClick}
+      style={{ ...styles.button, ...styles.smallButton, width: 42, padding: 0 }}
+    >
+      <Clock size={16} aria-hidden="true" />
+    </button>
+  );
+}
+
+const labelWithTimestamp = (label, timestamp) => (hasText(timestamp) ? `${label} ${timestamp}` : label);
+
 function DisplayValue({ label, value, wide = false }) {
   return (
     <div style={{ gridColumn: wide ? "1 / -1" : "auto" }}>
@@ -644,14 +1097,42 @@ function DisplayGrid({ children }) {
   return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{children}</div>;
 }
 
+function OperatorCard({ operators, addOperator, updateOperator, removeOperator }) {
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <label style={styles.label}>Operator</label>
+        <Button small onClick={addOperator} aria-label="Add operator" style={{ width: 36, minHeight: 34, padding: 0 }}>
+          <Plus size={16} aria-hidden="true" />
+        </Button>
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {operators.map((operator, index) => (
+          <div key={operator.id} style={{ display: "grid", gridTemplateColumns: index === 0 ? "minmax(0, 1fr)" : "minmax(0, 1fr) auto", gap: 6, alignItems: "center" }}>
+            <input
+              aria-label={`Operator ${index + 1}`}
+              value={operator.name}
+              onChange={(event) => updateOperator(operator.id, event.target.value)}
+              style={styles.input}
+            />
+            {index > 0 && <Button small onClick={() => removeOperator(operator.id)}>Delete</Button>}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function MaterialMixFields({ material, updateMaterial }) {
   const compactGrid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 54px minmax(0, 1fr) 54px", gap: 6, alignItems: "end" };
+  const naturalPercentValue = getNaturalPercent(material);
 
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={compactGrid}>
         <Field label="Natural" value={material.natural} onChange={(value) => updateMaterial(material.id, "natural", value)} />
-        <Field label="%" value={material.naturalPercent} onChange={(value) => updateMaterial(material.id, "naturalPercent", value)} />
+        <Field label="%" value={naturalPercentValue} onChange={(value) => updateMaterial(material.id, "naturalPercent", value)} />
         <Field label="Color" value={material.color} onChange={(value) => updateMaterial(material.id, "color", value)} />
         <Field label="%" value={material.colorPercent} onChange={(value) => updateMaterial(material.id, "colorPercent", value)} />
       </div>
@@ -669,7 +1150,7 @@ function MaterialMixFields({ material, updateMaterial }) {
 function MaterialMixDisplay({ material }) {
   return (
     <DisplayGrid>
-      <DisplayValue label="Natural" value={withPercent(material.natural, material.naturalPercent)} />
+      <DisplayValue label="Natural" value={withPercent(material.natural, getNaturalPercent(material))} />
       <DisplayValue label="Color" value={withPercent(material.color, material.colorPercent)} />
       <DisplayValue label="Regrind" value={withPercent(material.regrind, material.regrindPercent)} />
       <DisplayValue label="Additive" value={withPercent(material.additive, material.additivePercent)} />
@@ -679,12 +1160,13 @@ function MaterialMixDisplay({ material }) {
 
 function CoexMixFields({ coex, onChange }) {
   const compactGrid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 54px minmax(0, 1fr) 54px", gap: 6, alignItems: "end" };
+  const naturalPercentValue = getNaturalPercent(coex);
 
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={compactGrid}>
         <Field label="Natural" value={coex.natural} onChange={(value) => onChange("natural", value)} />
-        <Field label="%" value={coex.naturalPercent} onChange={(value) => onChange("naturalPercent", value)} />
+        <Field label="%" value={naturalPercentValue} onChange={(value) => onChange("naturalPercent", value)} />
         <Field label="Color" value={coex.color} onChange={(value) => onChange("color", value)} />
         <Field label="%" value={coex.colorPercent} onChange={(value) => onChange("colorPercent", value)} />
       </div>
@@ -699,81 +1181,55 @@ function CoexMixFields({ coex, onChange }) {
   );
 }
 
-function HomeHeader({ menuOpen, onMenuClick }) {
+function HomeHeader({ menuOpen, onMenuClick, isEditingLines, onEditClick }) {
   return (
     <div style={styles.homeHeader}>
       <button type="button" style={styles.menuButton} onClick={onMenuClick}>
         {menuOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
         <span>Menu</span>
       </button>
+      {!menuOpen && (
+        <button
+          type="button"
+          aria-label={isEditingLines ? "Done editing lines" : "Edit lines"}
+          style={{ ...styles.editIconButton, ...(isEditingLines ? styles.buttonPrimary : {}) }}
+          onClick={onEditClick}
+        >
+          <Pencil size={18} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
 
-function SidePanel({ screen, reportPanelOpen, date, shift, onDateChange, onShiftChange, onHomeClick, onReportsClick, onClose }) {
-  const reportActive = screen === "report" || reportPanelOpen;
-
+function SidePanel({ screen, reportTab, date, shift, isDieNumberActive, onDateChange, onShiftChange, onSelectReport, onSelectDieNumber }) {
   return (
     <nav style={styles.sidePanel} aria-label="Main">
-      <div style={styles.sideHeader}>
-        <div style={styles.sideTitle}>Menu</div>
-        <button type="button" aria-label="Close menu" style={styles.sideCloseButton} onClick={onClose}>
-          <X size={18} aria-hidden="true" />
+      {REPORT_TABS.map((tab) => (
+        <button key={tab} type="button" style={{ ...styles.sideButton, ...(screen === "report" && reportTab === tab ? styles.sideButtonActive : {}) }} onClick={() => onSelectReport(tab)}>
+          <span>{tabLabel(tab)}</span>
         </button>
-      </div>
+      ))}
 
-      <div style={styles.sideSection}>
-        <div>
+      <div style={styles.sideFooter}>
+        <button type="button" style={{ ...styles.sideButton, ...(isDieNumberActive ? styles.sideButtonActive : {}), marginBottom: 10 }} onClick={onSelectDieNumber}>
+          <span>Die #</span>
+        </button>
+
+        <div style={{ marginBottom: 10 }}>
           <label style={styles.label}>Date</label>
           <input type="date" value={date} onChange={(event) => onDateChange(event.target.value)} style={styles.input} />
         </div>
-
-        <div>
-          <label style={styles.label}>Shift</label>
-          <div style={styles.shiftGrid}>
-            {SHIFT_OPTIONS.map((option) => (
-              <Button key={option} active={shift === option} onClick={() => onShiftChange(option)}>
-                {option}
-              </Button>
-            ))}
-          </div>
+        <label style={styles.label}>Shift</label>
+        <div style={styles.shiftGrid}>
+          {SHIFT_OPTIONS.map((option) => (
+            <Button key={option} active={shift === option} onClick={() => onShiftChange(option)}>
+              {option}
+            </Button>
+          ))}
         </div>
       </div>
-
-      <button type="button" style={{ ...styles.sideButton, ...(screen === "lines" ? styles.sideButtonActive : {}) }} onClick={onHomeClick}>
-        <Home size={18} aria-hidden="true" />
-        <span>Home</span>
-      </button>
-
-      <button type="button" style={{ ...styles.sideButton, ...(reportActive ? styles.sideButtonActive : {}) }} onClick={onReportsClick}>
-        <FileText size={18} aria-hidden="true" />
-        <span>Reports</span>
-      </button>
     </nav>
-  );
-}
-
-function ReportSidePanel({ reportTab, selectedLine, onSelectReport, onSelectLine, onClose }) {
-  return (
-    <>
-      <button type="button" aria-label="Close reports" style={styles.reportScrim} onClick={onClose} />
-      <aside style={styles.secondaryPanel} aria-label="Reports">
-        <div style={styles.secondaryHeader}>
-          <div style={styles.secondaryTitle}>Reports</div>
-          <button type="button" aria-label="Close reports" style={styles.closeButton} onClick={onClose}>
-            <X size={18} aria-hidden="true" />
-          </button>
-        </div>
-
-        {TABS.map((tab) => (
-          <Button key={tab} active={reportTab === tab} onClick={() => onSelectReport(tab)} style={{ justifyContent: "flex-start" }}>
-            {tabLabel(tab)}
-          </Button>
-        ))}
-
-        <ReportPanelLineGrid selectedLine={selectedLine} onSelectLine={onSelectLine} />
-      </aside>
-    </>
   );
 }
 
@@ -801,68 +1257,70 @@ function PdfButton({ onClick, isExporting, printable }) {
   );
 }
 
-function LinesScreen({ data, selectedLine, onSelectLine }) {
+function LinesScreen({ data, selectedLine, onSelectLine, lineVisibility, isEditingLines, onToggleLine, onToggleLineGroup }) {
   return (
     <Card>
-      <LineButtonGrid data={data} selectedLine={selectedLine} onSelectLine={onSelectLine} />
+      <LineButtonGrid
+        data={data}
+        selectedLine={selectedLine}
+        onSelectLine={onSelectLine}
+        lineVisibility={lineVisibility}
+        isEditingLines={isEditingLines}
+        onToggleLine={onToggleLine}
+        onToggleLineGroup={onToggleLineGroup}
+      />
     </Card>
   );
 }
 
-function LineButtonGrid({ data, selectedLine, onSelectLine }) {
+function LineButtonGrid({ data, selectedLine, onSelectLine, lineVisibility, isEditingLines, onToggleLine, onToggleLineGroup }) {
+  const visibleGroups = LINE_GROUPS.filter((group) => isEditingLines || isGroupVisible(lineVisibility, group));
+
   return (
     <div style={styles.lineGrid}>
-      {LINE_GROUPS.map((group) => (
-        <div key={group.name} style={styles.lineColumn}>
-          <div style={styles.lineGroupTitle}>{group.name}</div>
-          {group.lines.map((line) => {
-            const lineKey = String(line);
-            const firstDie = data[lineKey]?.batches?.[0]?.die;
+      {visibleGroups.map((group) => {
+        const groupVisible = isGroupVisible(lineVisibility, group);
 
-            return (
+        return (
+          <div key={group.name} style={styles.lineColumn}>
+            {isEditingLines ? (
               <Button
-                key={line}
-                active={selectedLine === lineKey}
-                style={{ ...styles.lineButton, justifyContent: "space-between" }}
-                onClick={() => onSelectLine(line)}
-              >
-                <span>{line}</span>
-                <span style={{ fontSize: 14, opacity: 0.8 }}>{firstDie || ""}</span>
-              </Button>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ReportPanelLineGrid({ selectedLine, onSelectLine }) {
-  return (
-    <div style={styles.panelLineGrid}>
-      {LINE_GROUPS.map((group) => (
-        <div key={group.name} style={styles.lineColumn}>
-          <div style={styles.panelLineGroupTitle}>{group.name}</div>
-          {group.lines.map((line) => {
-            return (
-              <Button
-                key={line}
-                active={selectedLine === String(line)}
+                active={groupVisible}
                 small
-                style={styles.panelLineButton}
-                onClick={() => onSelectLine(line)}
+                style={{ ...styles.lineGroupButton, ...(groupVisible ? {} : styles.lineToggleOff) }}
+                onClick={() => onToggleLineGroup(group)}
               >
-                {line}
+                {group.name}
               </Button>
-            );
-          })}
-        </div>
-      ))}
+            ) : (
+              <div style={styles.lineGroupTitle}>{group.name}</div>
+            )}
+            {group.lines.map((line) => {
+              const lineKey = String(line);
+              const lineVisible = isLineVisible(lineVisibility, line);
+              const firstDie = data[lineKey]?.batches?.[0]?.die;
+              if (!isEditingLines && !lineVisible) return null;
+
+              return (
+                <Button
+                  key={line}
+                  active={isEditingLines ? lineVisible : selectedLine === lineKey}
+                  style={{ ...styles.lineButton, justifyContent: "space-between", ...(lineVisible ? {} : styles.lineToggleOff) }}
+                  onClick={() => (isEditingLines ? onToggleLine(lineKey) : onSelectLine(line))}
+                >
+                  <span>{line}</span>
+                  <span style={{ fontSize: 14, opacity: 0.8 }}>{firstDie || ""}</span>
+                </Button>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function MaterialFields({ material, canAddCoex, newCoexNumber, setNewCoexNumber, removeMaterial, updateMaterial, addCoex, updateCoex, removeCoex }) {
+function MaterialFields({ material, canAddCoex, canDelete, newCoexNumber, setNewCoexNumber, removeMaterial, updateMaterial, addCoex, updateCoex, removeCoex }) {
   const isEditing = !material.confirmed;
 
   return (
@@ -871,7 +1329,7 @@ function MaterialFields({ material, canAddCoex, newCoexNumber, setNewCoexNumber,
         <>
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 8 }}>
             <div style={{ display: "flex", gap: 6 }}>
-              <Button small onClick={() => removeMaterial(material.id)}>Delete</Button>
+              {canDelete && <Button small onClick={() => removeMaterial(material.id)}>Delete</Button>}
               <Button small active onClick={() => updateMaterial(material.id, "confirmed", true)}>Confirm</Button>
             </div>
           </div>
@@ -918,14 +1376,50 @@ function MaterialFields({ material, canAddCoex, newCoexNumber, setNewCoexNumber,
   );
 }
 
-function TroubleshootFields({ note, updateNote, deleteNote }) {
+function TemperatureAdjustmentFields({ temperatures, action, onChange }) {
+  return (
+    <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "64px 54px minmax(0, 1fr)", gap: 6, alignItems: "end" }}>
+        <div style={styles.temperatureLabel}>Zone</div>
+        <div style={styles.temperatureLabel}>Input</div>
+        <div style={styles.temperatureLabel}>Change</div>
+      </div>
+      {TEMPERATURE_FIELDS.map(([key, label]) => (
+        <div key={key} style={{ display: "grid", gridTemplateColumns: "64px 54px minmax(0, 1fr)", gap: 6, alignItems: "center" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#e2bd73" }}>{label}</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#f8e9c4" }}>{temperatures?.[key] || "-"}</div>
+          <input
+            value={action.temperatureAdjustments?.[key] || ""}
+            onChange={(event) => onChange(key, event.target.value)}
+            style={styles.temperatureInput}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TroubleshootFields({
+  note,
+  temperatures,
+  updateNote,
+  deleteNote,
+  addNoteAction,
+  updateNoteAction,
+  updateNoteTemperatureAdjustment,
+  deleteNoteAction,
+  addNoteResult,
+  updateNoteResult,
+  deleteNoteResult,
+}) {
   const isEditing = !note.confirmed;
 
   return (
     <div style={styles.subCard}>
       {isEditing ? (
         <>
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <TimestampInput value={note.timestamp} onChange={(value) => updateNote(note.id, "timestamp", value)} label="Issue timestamp" />
             <div style={{ display: "flex", gap: 6 }}>
               <Button small onClick={() => deleteNote(note.id)}>Delete</Button>
               <Button small active onClick={() => updateNote(note.id, "confirmed", true)}>Confirm</Button>
@@ -934,17 +1428,76 @@ function TroubleshootFields({ note, updateNote, deleteNote }) {
 
           <div style={styles.noteGrid}>
             <Field label="Issue" value={note.note} onChange={(value) => updateNote(note.id, "note", value)} textarea />
-            <Field label="Troubleshooting Action" value={note.action} onChange={(value) => updateNote(note.id, "action", value)} textarea />
-            <Field label="Result" value={note.result} onChange={(value) => updateNote(note.id, "result", value)} textarea />
+            {note.actions.map((action, actionIndex) => (
+              <div key={action.id} style={styles.coexInset}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <TimestampInput value={action.timestamp} onChange={(value) => updateNoteAction(note.id, action.id, "timestamp", value)} label={`Action ${actionIndex + 1} timestamp`} />
+                  <Button small onClick={() => deleteNoteAction(note.id, action.id)}>Delete Action</Button>
+                </div>
+
+                <Field label="Action" value={action.action} onChange={(value) => updateNoteAction(note.id, action.id, "action", value)} textarea />
+
+                {action.actionType === ACTION_TYPE_TEMP_ADJUSTMENT && (
+                  <TemperatureAdjustmentFields
+                    temperatures={temperatures}
+                    action={action}
+                    onChange={(key, value) => updateNoteTemperatureAdjustment(note.id, action.id, key, value)}
+                  />
+                )}
+
+                <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
+                  {action.results.map((result, resultIndex) => (
+                    <div key={result.id} style={{ display: "grid", gap: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                        <TimestampInput value={result.timestamp} onChange={(value) => updateNoteResult(note.id, action.id, result.id, "timestamp", value)} label={`Result ${resultIndex + 1} timestamp`} />
+                        <Button small onClick={() => deleteNoteResult(note.id, action.id, result.id)}>Delete</Button>
+                      </div>
+                      <Field label="Result" value={result.result} onChange={(value) => updateNoteResult(note.id, action.id, result.id, "result", value)} textarea />
+                    </div>
+                  ))}
+                  {actionIndex === note.actions.length - 1 && action.results.length === 0 && <Button small onClick={() => addNoteResult(note.id, action.id)}>Add Result</Button>}
+                </div>
+              </div>
+            ))}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <select
+                aria-label="Action type"
+                value=""
+                onChange={(event) => {
+                  if (event.target.value) addNoteAction(note.id, event.target.value);
+                }}
+                style={{ ...styles.button, ...styles.smallButton, width: "100%" }}
+              >
+                <option value="">Action type</option>
+                {ACTION_TYPE_MENU_OPTIONS.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <Button small onClick={() => addNoteAction(note.id)} style={{ width: "100%" }}>Action</Button>
+            </div>
           </div>
         </>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "start" }}>
-          <DisplayGrid>
-            <DisplayValue label="Issue" value={note.note} wide />
-            <DisplayValue label="Troubleshooting Action" value={note.action} wide />
-            <DisplayValue label="Result" value={note.result} wide />
-          </DisplayGrid>
+          <div>
+            <DisplayValue label={labelWithTimestamp("Issue", note.timestamp)} value={note.note} wide />
+            {note.actions.map((action) => (
+              <div key={action.id} style={styles.coexInset}>
+                {action.actionType === ACTION_TYPE_TEMP_ADJUSTMENT && <DisplayValue label="Action Type" value={actionTypeLabel(action.actionType)} wide />}
+                <DisplayValue label={labelWithTimestamp("Action", action.timestamp)} value={action.action} wide />
+                {action.actionType === ACTION_TYPE_TEMP_ADJUSTMENT && (
+                  <div style={{ marginTop: 8 }}>
+                    <DisplayValue label="Temp Adjustment" value={formatTemperatureAdjustmentSummary(action, temperatures)} wide />
+                  </div>
+                )}
+                {action.results.map((result) => (
+                  <div key={result.id} style={{ marginTop: 8 }}>
+                    <DisplayValue label={labelWithTimestamp("Result", result.timestamp)} value={result.result} wide />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
           <Button small onClick={() => updateNote(note.id, "confirmed", false)}>Edit</Button>
         </div>
       )}
@@ -967,21 +1520,46 @@ function MaterialDisplay({ material }) {
   );
 }
 
-function TroubleshootDisplay({ note }) {
+function TroubleshootDisplay({ note, temperatures, isCollapsed, onCollapsedChange }) {
   return (
     <div style={styles.subCard}>
-      <DisplayGrid>
-        <DisplayValue label="Issue" value={note.note} wide />
-        <DisplayValue label="Troubleshooting Action" value={note.action} wide />
-        <DisplayValue label="Result" value={note.result} wide />
-      </DisplayGrid>
+      <div style={{ fontSize: 15, fontWeight: 700, lineHeight: "19px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+        <Button
+          small
+          aria-label={isCollapsed ? "Show troubleshoot issue details" : "Hide troubleshoot issue details"}
+          title={isCollapsed ? "Show troubleshoot issue details" : "Hide troubleshoot issue details"}
+          onClick={() => onCollapsedChange(!isCollapsed)}
+          style={{ float: "right", width: 42, padding: 0, marginLeft: 8, marginBottom: 4 }}
+        >
+          {isCollapsed ? <Plus size={16} aria-hidden="true" /> : <Minus size={16} aria-hidden="true" />}
+        </Button>
+        <span style={{ ...styles.muted, fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>{labelWithTimestamp("Issue", note.timestamp)} </span>
+        {hasText(note.note) ? note.note : "-"}
+      </div>
+
+      {!isCollapsed && note.actions.map((action) => (
+        <div key={action.id} style={styles.coexInset}>
+          {action.actionType === ACTION_TYPE_TEMP_ADJUSTMENT && <DisplayValue label="Action Type" value={actionTypeLabel(action.actionType)} wide />}
+          <DisplayValue label={labelWithTimestamp("Action", action.timestamp)} value={action.action} wide />
+          {action.actionType === ACTION_TYPE_TEMP_ADJUSTMENT && (
+            <div style={{ marginTop: 8 }}>
+              <DisplayValue label="Temp Adjustment" value={formatTemperatureAdjustmentSummary(action, temperatures)} wide />
+            </div>
+          )}
+          {action.results.map((result) => (
+            <div key={result.id} style={{ marginTop: 8 }}>
+              <DisplayValue label={labelWithTimestamp("Result", result.timestamp)} value={result.result} wide />
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
 
-function TemperatureSettings({ temperatures, otherTimes, onChange, addOtherTime, updateOtherTime, removeOtherTime }) {
-  const minutesPerContainer = calculateMinutesPerContainer(temperatures);
-  const totalTime = calculateTotalTime(temperatures, otherTimes);
+function LineRateCard({ temperatures, onChange, isCollapsed, onCollapsedChange }) {
+  const timePerContainer = calculateTimePerContainer(temperatures);
+  const timeUntilDone = calculateTimeUntilDone(temperatures);
   const renderInput = ([key, label]) => (
     <div key={key} style={{ direction: "ltr" }}>
       <label style={styles.temperatureLabel}>{label}</label>
@@ -993,65 +1571,363 @@ function TemperatureSettings({ temperatures, otherTimes, onChange, addOtherTime,
       />
     </div>
   );
+  const rateFields = [
+    ["lineSpeed", "Line Speed"],
+    ["cutLength", "Cut Length"],
+  ];
+  const containerFields = [
+    ["currentContainer", "Current Container"],
+    ["totalContainers", "Total Containers"],
+    ["perContainer", "Per Container"],
+  ];
+
+  if (isCollapsed) {
+    return (
+      <Card>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 42px", gap: 8, alignItems: "center" }}>
+          <DisplayValue label="Line Speed" value={temperatures?.lineSpeed || "-"} />
+          <Button
+            small
+            aria-label="Show line rate settings"
+            title="Show line rate settings"
+            onClick={() => onCollapsedChange(false)}
+            style={{ width: 42, padding: 0 }}
+          >
+            <Plus size={16} aria-hidden="true" />
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr)) 42px", gap: 8, alignItems: "end" }}>
+        {rateFields.map(renderInput)}
+        <Button
+          small
+          aria-label="Hide line rate settings"
+          title="Hide line rate settings"
+          onClick={() => onCollapsedChange(true)}
+          style={{ width: 42, padding: 0 }}
+        >
+          <Minus size={16} aria-hidden="true" />
+        </Button>
+      </div>
+      <div style={{ ...styles.settingsGridThree, marginTop: 8 }}>{containerFields.map(renderInput)}</div>
+      <div style={styles.calculatedSetting}>
+        <div style={styles.temperatureLabel}>Time Per Container</div>
+        <div style={styles.calculatedValue}>{timePerContainer || "-"}</div>
+      </div>
+      <div style={styles.calculatedSetting}>
+        <div style={styles.temperatureLabel}>Time Until Done</div>
+        <div style={styles.calculatedValue}>{timeUntilDone || "-"}</div>
+      </div>
+    </Card>
+  );
+}
+
+function LineCalculatorCard({ calculator, updateCalculator, removeCalculator }) {
+  const result = calculateLineCalculatorResult(calculator);
+  const fields = getCalculatorFields(calculator.type);
+
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <div style={{ fontWeight: 900, color: "#e2bd73" }}>{getCalculatorTitle(calculator.type)}</div>
+        <Button small onClick={() => removeCalculator(calculator.id)}>Delete</Button>
+      </div>
+
+      <div style={styles.settingsGridThree}>
+        {fields.map(([field, label]) => (
+          <div key={field} style={{ direction: "ltr" }}>
+            <label style={styles.temperatureLabel}>{label}</label>
+            <input
+              inputMode="numeric"
+              value={calculator.inputs?.[field] || ""}
+              onChange={(event) => updateCalculator(calculator.id, field, event.target.value)}
+              style={styles.temperatureInput}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div style={styles.calculatedSetting}>
+        <div style={styles.temperatureLabel}>{getCalculatorResultLabel(calculator.type)}</div>
+        <div style={styles.calculatedValue}>{result || "-"}</div>
+      </div>
+    </Card>
+  );
+}
+
+function LineCalculators({ calculators, addCalculator, updateCalculator, removeCalculator, isCollapsed, onCollapsedChange }) {
+  const handleAddCalculator = (type) => {
+    addCalculator(type);
+    onCollapsedChange(false);
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 42px", gap: 8 }}>
+        <select
+          aria-label="Add calculator"
+          value=""
+          onChange={(event) => {
+            if (event.target.value) handleAddCalculator(event.target.value);
+          }}
+          style={{ ...styles.button, width: "100%", minWidth: 0, textAlign: "center" }}
+        >
+          <option value="">Add Calculator</option>
+          {CALCULATOR_OPTIONS.map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+        <Button
+          small
+          aria-label={isCollapsed ? "Show calculators" : "Hide calculators"}
+          title={isCollapsed ? "Show calculators" : "Hide calculators"}
+          onClick={() => onCollapsedChange(!isCollapsed)}
+          style={{ width: 42, padding: 0 }}
+        >
+          {isCollapsed ? <Plus size={16} aria-hidden="true" /> : <Minus size={16} aria-hidden="true" />}
+        </Button>
+      </div>
+
+      {!isCollapsed && calculators.map((calculator) => (
+        <LineCalculatorCard
+          key={calculator.id}
+          calculator={calculator}
+          updateCalculator={updateCalculator}
+          removeCalculator={removeCalculator}
+        />
+      ))}
+    </div>
+  );
+}
+
+function GeneralNotesCard({ value, onChange, isCollapsed, onCollapsedChange }) {
+  if (isCollapsed) {
+    return (
+      <Card>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 42px", gap: 8, alignItems: "center" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ ...styles.muted, fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Notes</div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {hasText(value) ? value : "-"}
+            </div>
+          </div>
+          <Button
+            small
+            aria-label="Show notes"
+            title="Show notes"
+            onClick={() => onCollapsedChange(false)}
+            style={{ width: 42, padding: 0 }}
+          >
+            <Plus size={16} aria-hidden="true" />
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 42px", gap: 8, alignItems: "start" }}>
+        <Field label="Notes" value={value || ""} onChange={onChange} textarea />
+        <Button
+          small
+          aria-label="Hide notes"
+          title="Hide notes"
+          onClick={() => onCollapsedChange(true)}
+          style={{ width: 42, padding: 0, marginTop: 26 }}
+        >
+          <Minus size={16} aria-hidden="true" />
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function SettingsNotesFields({ notes, onAddNote, onChangeNote }) {
+  const normalizedNotes = normalizeSettingsNotes(notes);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <label style={{ ...styles.label, marginBottom: 0 }}>Notes</label>
+        <Button small onClick={onAddNote} aria-label="Add settings note" style={{ width: 36, minHeight: 34, padding: 0 }}>
+          <Plus size={16} aria-hidden="true" />
+        </Button>
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {normalizedNotes.map((note, index) => (
+          <Field
+            key={note.id}
+            label={index === 0 ? "Note" : `Note ${index + 1}`}
+            value={note.note}
+            onChange={(value) => onChangeNote(note.id, value)}
+            textarea
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SettingsNotesCard({ notes, onAddNote, onChangeNote }) {
+  return (
+    <Card>
+      <SettingsNotesFields notes={notes} onAddNote={onAddNote} onChangeNote={onChangeNote} />
+    </Card>
+  );
+}
+
+function TemperatureSettings({ temperatures, settingsNotes, onChange, onAddSettingsNote, onUpdateSettingsNote, onSaveDieNumber, onImportLastDieSetting }) {
+  const cardTitle = { fontSize: 14, fontWeight: 900, color: "#e2bd73", marginBottom: 8, textShadow: "0 1px 0 #000" };
+  const renderInput = ([key, label], inputMode = "numeric") => (
+    <div key={key} style={{ direction: "ltr" }}>
+      <label style={styles.temperatureLabel}>{label}</label>
+      <input
+        inputMode={inputMode}
+        value={temperatures?.[key] || ""}
+        onChange={(event) => onChange(key, event.target.value)}
+        style={styles.temperatureInput}
+      />
+    </div>
+  );
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <Card>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 74px", gap: 8, alignItems: "end" }}>
+          {renderInput(DIE_NUMBER_FIELD, "text")}
+          <select
+            aria-label="Die file options"
+            value=""
+            onChange={(event) => {
+              if (event.target.value === "save") onSaveDieNumber();
+              if (event.target.value === "import") onImportLastDieSetting();
+              event.target.value = "";
+            }}
+            style={{ ...styles.button, ...styles.smallButton, width: "100%", padding: "7px 8px", textAlign: "center" }}
+          >
+            <option value="">File</option>
+            <option value="save">Save</option>
+            <option value="import">Import Last</option>
+          </select>
+        </div>
+      </Card>
+
+      <Card>
+        <div style={cardTitle}>Temperatures</div>
         <div style={styles.temperatureGrid}>{TEMPERATURE_FIELDS.map(renderInput)}</div>
       </Card>
 
       <Card>
-        <div style={styles.settingsGrid}>{PROCESS_SETTING_GROUPS[0].map(renderInput)}</div>
+        <div style={cardTitle}>Down Stream</div>
+        <div style={styles.settingsGridThree}>{PROCESS_SETTING_FIELDS.map((field) => renderInput(field, "text"))}</div>
       </Card>
 
       <Card>
-        <div style={styles.settingsGridFour}>{PROCESS_SETTING_GROUPS[1].map(renderInput)}</div>
-        <div style={styles.calculatedSetting}>
-          <div style={styles.temperatureLabel}>Minutes Per Container</div>
-          <div style={styles.calculatedValue}>{minutesPerContainer || "-"}</div>
+        <div style={styles.settingsGridThree}>{PRODUCTION_SETTING_FIELDS.map((field) => renderInput(field, "text"))}</div>
+      </Card>
+
+      <SettingsNotesCard notes={settingsNotes} onAddNote={onAddSettingsNote} onChangeNote={onUpdateSettingsNote} />
+    </div>
+  );
+}
+
+function DieSettingsScreen({
+  dieSettings,
+  goHome,
+  goLineView,
+  onMenuClick,
+  onDeleteDieSetting,
+  onUpdateDieSettingTemperature,
+  onAddDieSettingNote,
+  onUpdateDieSettingNote,
+}) {
+  const [editingId, setEditingId] = useState("");
+  const cardTitle = { fontSize: 14, fontWeight: 900, color: "#e2bd73", marginBottom: 8, textShadow: "0 1px 0 #000" };
+  const renderInput = (setting, [key, label], inputMode = "text") => (
+    <div key={key} style={{ direction: "ltr" }}>
+      <label style={styles.temperatureLabel}>{label}</label>
+      <input
+        inputMode={inputMode}
+        value={setting.temperatures?.[key] || ""}
+        onChange={(event) => onUpdateDieSettingTemperature(setting.id, key, event.target.value)}
+        style={styles.temperatureInput}
+      />
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <Card style={{ position: "sticky", top: 0, zIndex: 60 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr) 74px", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 6, justifySelf: "start" }}>
+            <Button small onClick={goHome} aria-label="Home" style={{ width: 42 }}>
+              <Home size={16} aria-hidden="true" />
+            </Button>
+            <Button small onClick={goLineView}>Line</Button>
+          </div>
+
+          <div style={{ fontWeight: 800, fontSize: 18, textAlign: "center" }}>Die #</div>
+
+          <Button small onClick={onMenuClick} style={{ justifySelf: "stretch", padding: "7px 5px", fontSize: 11 }}>
+            <Menu size={14} aria-hidden="true" />
+            Menu
+          </Button>
         </div>
       </Card>
 
-      <Card>
-        <div style={styles.settingsGridThree}>{PROCESS_SETTING_GROUPS[2].map(renderInput)}</div>
-      </Card>
-
-      <Card>
-        <div style={styles.settingsGridThree}>{PRODUCTION_SETTING_FIELDS.map(renderInput)}</div>
-      </Card>
-
-      <Card>
-        <div style={styles.settingsGridThree}>{TIME_SETTING_FIELDS.map(renderInput)}</div>
-        <div style={styles.calculatedSetting}>
-          <div style={styles.temperatureLabel}>Total Time (must total 8)</div>
-          <div style={styles.calculatedValue}>{totalTime || "-"}</div>
-        </div>
-        <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
-          {otherTimes.map((otherTime) => (
-            <div key={otherTime.id} style={styles.otherTimeGrid}>
-              <div>
-                <label style={styles.temperatureLabel}>Time</label>
-                <input
-                  inputMode="numeric"
-                  value={otherTime.time}
-                  onChange={(event) => updateOtherTime(otherTime.id, "time", event.target.value)}
-                  style={styles.temperatureInput}
-                />
+      {dieSettings.length === 0 ? (
+        <Card>
+          <div style={{ color: "#d7c497", fontWeight: 800 }}>No saved die settings yet.</div>
+        </Card>
+      ) : (
+        dieSettings.map((setting) => (
+          <Card key={setting.id}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "start" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "#e2bd73" }}>{setting.dieNumber}</div>
+                {hasText(setting.savedAt) && <div style={{ ...styles.muted, fontSize: 11, marginTop: 2 }}>Date {formatSavedAt(setting.savedAt)}</div>}
               </div>
-              <div>
-                <label style={styles.temperatureLabel}>Description</label>
-                <input
-                  value={otherTime.description}
-                  onChange={(event) => updateOtherTime(otherTime.id, "description", event.target.value)}
-                  style={styles.temperatureInput}
-                />
-              </div>
-              <Button small onClick={() => removeOtherTime(otherTime.id)}>Delete</Button>
+              <Button small onClick={() => setEditingId((currentId) => (currentId === setting.id ? "" : setting.id))}>
+                Edit
+              </Button>
             </div>
-          ))}
-          <Button small onClick={addOtherTime}>Other Time</Button>
-        </div>
-      </Card>
+
+            {editingId === setting.id && (
+              <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                <div>
+                  <div style={cardTitle}>Die #</div>
+                  <div style={styles.settingsGridThree}>{[DIE_NUMBER_FIELD].map((field) => renderInput(setting, field))}</div>
+                </div>
+                <div>
+                  <div style={cardTitle}>Temperatures</div>
+                  <div style={styles.temperatureGrid}>{TEMPERATURE_FIELDS.map((field) => renderInput(setting, field, "numeric"))}</div>
+                </div>
+                <div>
+                  <div style={cardTitle}>Down Stream</div>
+                  <div style={styles.settingsGridThree}>{PROCESS_SETTING_FIELDS.map((field) => renderInput(setting, field))}</div>
+                </div>
+                <div>
+                  <div style={cardTitle}>Gram Weight</div>
+                  <div style={styles.settingsGridThree}>{PRODUCTION_SETTING_FIELDS.map((field) => renderInput(setting, field))}</div>
+                </div>
+                <SettingsNotesFields
+                  notes={setting.settingsNotes}
+                  onAddNote={() => onAddDieSettingNote(setting.id)}
+                  onChangeNote={(noteId, value) => onUpdateDieSettingNote(setting.id, noteId, value)}
+                />
+                <Button small onClick={() => onDeleteDieSetting(setting.id)}>Delete</Button>
+              </div>
+            )}
+          </Card>
+        ))
+      )}
     </div>
   );
 }
@@ -1064,15 +1940,29 @@ function EntryScreen(props) {
     goLineReport,
     showSettings,
     toggleSettings,
+    addOperator,
     updateOperator,
+    removeOperator,
     updateTemperature,
-    addOtherTime,
-    updateOtherTime,
-    removeOtherTime,
+    addCalculator,
+    updateCalculator,
+    removeCalculator,
+    updateGeneralNotes,
+    addSettingsNote,
+    updateSettingsNote,
+    saveDieSetting,
+    importLastDieSetting,
+    lineRateCollapsed,
+    setLineRateCollapsed,
+    notesCollapsed,
+    setNotesCollapsed,
+    calculatorsCollapsed,
+    setCalculatorsCollapsed,
+    getTroubleshootCollapsed,
+    setTroubleshootCollapsed,
     addBatch,
     updateBatch,
     removeBatch,
-    addMaterial,
     removeMaterial,
     updateMaterial,
     addCoex,
@@ -1082,6 +1972,13 @@ function EntryScreen(props) {
     setNewCoexNumber,
     addNote,
     updateNote,
+    addNoteAction,
+    updateNoteAction,
+    updateNoteTemperatureAdjustment,
+    deleteNoteAction,
+    addNoteResult,
+    updateNoteResult,
+    deleteNoteResult,
     deleteNote,
   } = props;
   const hasAnyCoex = selected.materials.some((material) => material.coexes.length > 0);
@@ -1109,21 +2006,20 @@ function EntryScreen(props) {
       {showSettings ? (
         <TemperatureSettings
           temperatures={selected.temperatures}
-          otherTimes={selected.otherTimes || []}
+          settingsNotes={selected.settingsNotes}
           onChange={updateTemperature}
-          addOtherTime={addOtherTime}
-          updateOtherTime={updateOtherTime}
-          removeOtherTime={removeOtherTime}
+          onAddSettingsNote={addSettingsNote}
+          onUpdateSettingsNote={updateSettingsNote}
+          onSaveDieNumber={saveDieSetting}
+          onImportLastDieSetting={importLastDieSetting}
         />
       ) : (
         <>
-          <Card>
-            <Field label="Operator" value={selected.operator} onChange={updateOperator} />
-          </Card>
+          <OperatorCard operators={normalizeOperators(selected)} addOperator={addOperator} updateOperator={updateOperator} removeOperator={removeOperator} />
 
           {selected.batches.map((batch, index) => {
-            const batchMaterials = selected.materials.filter((material) => material.batchId === batch.id || (!material.batchId && index === 0 && hasMaterialContent(material)));
-            const batchNotes = selected.notes.filter((note) => note.batchId === batch.id || (!note.batchId && index === 0 && [note.note, note.action, note.result, note.die].some(hasText)));
+            const batchMaterials = selected.materials.filter((material) => isMaterialForBatch(material, batch, index));
+            const batchNotes = selected.notes.filter((note) => note.batchId === batch.id || (!note.batchId && index === 0 && hasTroubleshootContent(note)));
             const isEditing = !batch.confirmed;
 
             return (
@@ -1149,15 +2045,6 @@ function EntryScreen(props) {
                       <Field label="Quantity" value={batch.quantity} onChange={(value) => updateBatch(batch.id, "quantity", value)} />
                     </div>
 
-                    <div style={{ marginTop: 10 }}>
-                      <Field label="Item Number" value={batch.itemNumber} onChange={(value) => updateBatch(batch.id, "itemNumber", value)} />
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
-                      <Button small onClick={() => addMaterial(batch.id, batch)}>+ Add Materials</Button>
-                      <Button small onClick={() => addNote(batch.id, batch)}>+ Add Troubleshoot</Button>
-                    </div>
-
                     {batchMaterials.length > 0 && (
                       <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
                         {batchMaterials.map((material) => (
@@ -1165,6 +2052,7 @@ function EntryScreen(props) {
                             key={material.id}
                             material={material}
                             canAddCoex={!hasAnyCoex}
+                            canDelete={batchMaterials.length > 1}
                             newCoexNumber={newCoexNumber}
                             setNewCoexNumber={setNewCoexNumber}
                             removeMaterial={removeMaterial}
@@ -1177,10 +2065,27 @@ function EntryScreen(props) {
                       </div>
                     )}
 
+                    <div style={{ marginTop: 10 }}>
+                      <Button small onClick={() => addNote(batch.id, batch)} style={{ width: "100%" }}>Troubleshoot</Button>
+                    </div>
+
                     {batchNotes.length > 0 && (
                       <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
                         {batchNotes.map((note) => (
-                          <TroubleshootFields key={note.id} note={note} updateNote={updateNote} deleteNote={deleteNote} />
+                          <TroubleshootFields
+                            key={note.id}
+                            note={note}
+                            temperatures={selected.temperatures}
+                            updateNote={updateNote}
+                            addNoteAction={addNoteAction}
+                            updateNoteAction={updateNoteAction}
+                            updateNoteTemperatureAdjustment={updateNoteTemperatureAdjustment}
+                            deleteNoteAction={deleteNoteAction}
+                            addNoteResult={addNoteResult}
+                            updateNoteResult={updateNoteResult}
+                            deleteNoteResult={deleteNoteResult}
+                            deleteNote={deleteNote}
+                          />
                         ))}
                       </div>
                     )}
@@ -1192,7 +2097,6 @@ function EntryScreen(props) {
                         <div style={{ display: "grid", gap: 10 }}>
                           <DisplayValue label="Batch" value={batch.batch} />
                           <DisplayValue label="Die" value={batch.die} />
-                          <DisplayValue label="Item Number" value={batch.itemNumber} />
                         </div>
                         <div style={{ display: "grid", gap: 10 }}>
                           <DisplayValue label="Description" value={batch.description} />
@@ -1213,7 +2117,13 @@ function EntryScreen(props) {
                     {batchNotes.length > 0 && (
                       <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
                         {batchNotes.map((note) => (
-                          <TroubleshootDisplay key={note.id} note={note} />
+                          <TroubleshootDisplay
+                            key={note.id}
+                            note={note}
+                            temperatures={selected.temperatures}
+                            isCollapsed={getTroubleshootCollapsed(note.id)}
+                            onCollapsedChange={(isCollapsed) => setTroubleshootCollapsed(note.id, isCollapsed)}
+                          />
                         ))}
                       </div>
                     )}
@@ -1222,6 +2132,17 @@ function EntryScreen(props) {
               </Card>
             );
           })}
+
+          <LineRateCard temperatures={selected.temperatures} onChange={updateTemperature} isCollapsed={lineRateCollapsed} onCollapsedChange={setLineRateCollapsed} />
+          <GeneralNotesCard value={selected.generalNotes} onChange={updateGeneralNotes} isCollapsed={notesCollapsed} onCollapsedChange={setNotesCollapsed} />
+          <LineCalculators
+            calculators={selected.calculators || []}
+            addCalculator={addCalculator}
+            updateCalculator={updateCalculator}
+            removeCalculator={removeCalculator}
+            isCollapsed={calculatorsCollapsed}
+            onCollapsedChange={setCalculatorsCollapsed}
+          />
         </>
       )}
     </div>
@@ -1229,8 +2150,9 @@ function EntryScreen(props) {
 }
 
 function ScheduleReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
-  const grid = { display: "grid", gridTemplateColumns: "28px 48px 45px 30px 45px 1fr 48px", columnGap: 2, textAlign: "left" };
+  const grid = { display: "grid", gridTemplateColumns: "28px 48px 45px 30px 1fr 48px", columnGap: 2, textAlign: "left" };
   const reportTheme = getReportTheme(isPrintableReport);
+  const batchColumn = { paddingLeft: 6, boxSizing: "border-box" };
 
   return (
     <div>
@@ -1239,11 +2161,12 @@ function ScheduleReport({ data, date, shift, exportReportPdf, isExporting, isPri
         <ReportHeader title="Schedule" date={date} shift={shift} printable={isPrintableReport} />
         <div style={reportTheme.block}>
           <div style={{ ...grid, ...reportTheme.headRow }}>
-            <div>Line</div><div>Operator</div><div>Batch</div><div>Die</div><div>Item #</div><div>Description</div><div>Qty</div>
+            <div>Line</div><div>Operator</div><div style={batchColumn}>Batch</div><div>Die</div><div>Description</div><div>Qty</div>
           </div>
           {Object.entries(data).map(([line, lineData]) => {
             const filledBatches = getFilledBatches(lineData);
-            const hasContent = hasText(lineData.operator) || filledBatches.length > 0;
+            const operatorText = getOperatorText(lineData);
+            const hasContent = hasText(operatorText) || filledBatches.length > 0;
             if (!hasContent) return null;
 
             const rowsToPrint = filledBatches.length ? filledBatches : [createBatch()];
@@ -1253,10 +2176,9 @@ function ScheduleReport({ data, date, shift, exportReportPdf, isExporting, isPri
                 {rowsToPrint.map((batch, index) => (
                   <div key={batch.id} style={{ ...grid, ...reportTheme.row, marginBottom: index === rowsToPrint.length - 1 ? 0 : 2 }}>
                     <div>{index === 0 ? line : ""}</div>
-                    <div>{index === 0 ? lineData.operator || "-" : ""}</div>
-                    <div>{batch.batch || "-"}</div>
+                    <div>{index === 0 ? operatorText || "-" : ""}</div>
+                    <div style={batchColumn}>{batch.batch || "-"}</div>
                     <div>{batch.die || ""}</div>
-                    <div>{batch.itemNumber || ""}</div>
                     <div>{batch.description || ""}</div>
                     <div>{batch.quantity || ""}</div>
                   </div>
@@ -1281,26 +2203,29 @@ function TroubleshootReport({ data, date, shift, exportReportPdf, isExporting, i
         <ReportHeader title="Troubleshoot" date={date} shift={shift} printable={isPrintableReport} />
         <div style={reportTheme.block}>
           <div style={{ ...grid, ...reportTheme.headRow }}>
-            <div>Line</div><div>Die</div><div>Issue</div><div>Troubleshooting Action</div><div>Result</div>
+            <div>Line</div><div>Die</div><div>Issue</div><div>Action</div><div>Result</div>
           </div>
           {Object.entries(data).map(([line, lineData]) => {
-            if (!lineData.notes.length) return null;
-            const firstDie = lineData.batches?.[0]?.die || "";
-            const batchesById = new Map((lineData.batches || []).map((batch) => [batch.id, batch]));
+            const rows = getTroubleshootRowsForLine(line, lineData);
+            if (!rows.length) return null;
 
-            return lineData.notes.map((note, index) => {
-              const linkedBatch = batchesById.get(note.batchId);
-
-              return (
-                <div key={note.id} style={{ ...grid, ...reportTheme.row, marginBottom: 4 }}>
-                  <div>{index === 0 ? line : ""}</div>
-                  <div>{linkedBatch?.die || note.die || (index === 0 ? firstDie : "")}</div>
-                  <div>{note.note || ""}</div>
-                  <div>{note.action || ""}</div>
-                  <div>{note.result || ""}</div>
-                </div>
-              );
-            });
+            return rows.map((row, index) => (
+              <div
+                key={row.id}
+                style={{
+                  ...grid,
+                  ...reportTheme.row,
+                  ...(row.issueStart && index > 0 ? { borderTop: "1px solid rgba(202,165,107,.55)", paddingTop: 4 } : {}),
+                  marginBottom: 4,
+                }}
+              >
+                <div>{index === 0 ? row.line : ""}</div>
+                <div>{row.die}</div>
+                <div>{row.issue}</div>
+                <div>{row.action}</div>
+                <div>{row.result}</div>
+              </div>
+            ));
           })}
         </div>
       </div>
@@ -1343,36 +2268,120 @@ function MaterialsReport({ data, date, shift, exportReportPdf, isExporting, isPr
   );
 }
 
+function DailyReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+  const scheduleGrid = { display: "grid", gridTemplateColumns: "48px 45px 30px 1fr 48px", columnGap: 2, textAlign: "left" };
+  const materialGrid = { display: "grid", gridTemplateColumns: "45px 45px 1fr 1fr 1fr 1fr", columnGap: 2 };
+  const troubleGrid = { display: "grid", gridTemplateColumns: "42px 1fr 1fr 1fr", columnGap: 2 };
+  const reportTheme = getReportTheme(isPrintableReport);
+  const sectionTitle = { ...reportTheme.headRow, borderBottom: 0, marginBottom: 4 };
+  const batchColumn = { paddingLeft: 6, boxSizing: "border-box" };
+
+  return (
+    <div>
+      <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
+      <div id="print-area" style={reportTheme.shell}>
+        <ReportHeader title="Daily Report" date={date} shift={shift} printable={isPrintableReport} />
+
+        {Object.entries(data).map(([line, lineData]) => {
+          const filledBatches = getFilledBatches(lineData);
+          const operatorText = getOperatorText(lineData);
+          const materialRows = getMaterialRowsForReport(line, lineData);
+          const troubleshootRows = getTroubleshootRowsForLine(line, lineData);
+          const generalNotes = lineData.generalNotes || "";
+          const hasContent = hasText(operatorText) || filledBatches.length > 0 || materialRows.length > 0 || troubleshootRows.length > 0 || hasText(generalNotes);
+          if (!hasContent) return null;
+
+          const rowsToPrint = filledBatches.length ? filledBatches : [createBatch()];
+
+          return (
+            <div key={line} style={reportTheme.block}>
+              <div style={sectionTitle}>Line {line}</div>
+              <div style={{ ...scheduleGrid, ...reportTheme.headRow }}>
+                <div>Operator</div><div style={batchColumn}>Batch</div><div>Die</div><div>Description</div><div>Qty</div>
+              </div>
+              {rowsToPrint.map((batch, index) => (
+                <div key={batch.id} style={{ ...scheduleGrid, ...reportTheme.row, marginBottom: index === rowsToPrint.length - 1 ? 0 : 2 }}>
+                  <div>{index === 0 ? operatorText || "-" : ""}</div>
+                  <div style={batchColumn}>{batch.batch || "-"}</div>
+                  <div>{batch.die || ""}</div>
+                  <div>{batch.description || ""}</div>
+                  <div>{batch.quantity || ""}</div>
+                </div>
+              ))}
+
+              {materialRows.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={sectionTitle}>Materials</div>
+                  <div style={{ ...materialGrid, ...reportTheme.headRow }}>
+                    <div>Die</div><div>Batch</div><div>Natural</div><div>Color</div><div>Regrind</div><div>Additive</div>
+                  </div>
+                  {materialRows.map((row, index) => (
+                    <div key={`${line}-${index}-${row.batch}`} style={{ ...materialGrid, ...reportTheme.row, marginBottom: 2 }}>
+                      <div style={{ textAlign: "left" }}>{row.die}</div>
+                      <div style={{ textAlign: "left" }}>{row.batch}</div>
+                      <div style={{ textAlign: "left" }}>{row.natural}</div>
+                      <div style={{ textAlign: "left" }}>{row.color}</div>
+                      <div style={{ textAlign: "left" }}>{row.regrind}</div>
+                      <div style={{ textAlign: "left" }}>{row.additive}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {troubleshootRows.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={sectionTitle}>Troubleshoot</div>
+                  <div style={{ ...troubleGrid, ...reportTheme.headRow }}>
+                    <div>Die</div><div>Issue</div><div>Action</div><div>Result</div>
+                  </div>
+                  {troubleshootRows.map((row, index) => (
+                    <div
+                      key={row.id}
+                      style={{
+                        ...troubleGrid,
+                        ...reportTheme.row,
+                        ...(row.issueStart && index > 0 ? { borderTop: "1px solid rgba(202,165,107,.55)", paddingTop: 4 } : {}),
+                        marginBottom: 4,
+                      }}
+                    >
+                      <div>{row.die}</div>
+                      <div>{row.issue}</div>
+                      <div>{row.action}</div>
+                      <div>{row.result}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {hasText(generalNotes) && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={sectionTitle}>General Notes</div>
+                  <div style={{ ...reportTheme.row, whiteSpace: "pre-wrap" }}>{generalNotes}</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function LineReport({ selectedLine, data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
   const lineData = data[selectedLine] || createLineData();
-  const batchGrid = { display: "grid", gridTemplateColumns: "42px 38px 45px 1fr 42px", columnGap: 3 };
-  const materialGrid = { display: "grid", gridTemplateColumns: "38px 42px 42px 1fr 1fr 1fr 1fr", columnGap: 3 };
-  const troubleGrid = { display: "grid", gridTemplateColumns: "42px 1fr 1fr 1fr", columnGap: 3 };
+  const batchGrid = { display: "grid", gridTemplateColumns: "48px 42px 1fr 46px", columnGap: 3 };
+  const materialGrid = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", columnGap: 3 };
+  const troubleGrid = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", columnGap: 3 };
   const reportTheme = getReportTheme(isPrintableReport);
   const settingCell = reportTheme.settingCell;
   const settingLabel = reportTheme.settingLabel;
   const settingValue = { fontSize: 12, fontWeight: 800, marginTop: 2, minHeight: 14, wordBreak: "break-word" };
   const settingGrid = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 5 };
+  const sectionInset = { paddingLeft: 8, boxSizing: "border-box" };
   const materialRows = getMaterialRowsForReport(selectedLine, lineData);
+  const troubleshootRows = getTroubleshootRowsForLine(selectedLine, lineData);
   const filledBatches = getFilledBatches(lineData);
   const batchesToPrint = filledBatches.length ? filledBatches : lineData.batches;
-  const minutesPerContainer = calculateMinutesPerContainer(lineData.temperatures);
-  const totalTime = calculateTotalTime(lineData.temperatures, lineData.otherTimes);
-  const processFields = [
-    ["vacuum", "Vacuum"],
-    ["cooling", "Cooling"],
-    ["puller", "Puller"],
-    ["lineSpeed", "Line Speed"],
-    ["cutLength", "Cut Length"],
-    ["perContainer", "Per Container"],
-    ["minutesPerContainer", "Min/Container", minutesPerContainer],
-    ["cutter", "Cutter"],
-    ["offline", "Offline"],
-    ["packing", "Packing"],
-    ...PRODUCTION_SETTING_FIELDS,
-    ...TIME_SETTING_FIELDS,
-    ["totalTime", "Total Time (must total 8)", totalTime],
-  ];
   const renderSetting = ([key, label, calculatedValue]) => (
     <div key={key} style={settingCell}>
       <div style={settingLabel}>{label}</div>
@@ -1391,7 +2400,7 @@ function LineReport({ selectedLine, data, date, shift, exportReportPdf, isExport
           <div style={settingGrid}>
             {[
               ["line", "Line", selectedLine],
-              ["operator", "Operator", lineData.operator || "-"],
+              ["operator", "Operator", getOperatorText(lineData) || "-"],
               ["date", "Date", formatDisplayDate(date)],
               ["shift", "Shift", shift],
             ].map(renderSetting)}
@@ -1399,89 +2408,72 @@ function LineReport({ selectedLine, data, date, shift, exportReportPdf, isExport
         </div>
 
         <div style={reportTheme.block}>
-          <div style={{ ...reportTheme.headRow, borderBottom: 0, marginBottom: 4 }}>Temperatures</div>
-          <div style={settingGrid}>{TEMPERATURE_FIELDS.map(renderSetting)}</div>
-        </div>
-
-        <div style={reportTheme.block}>
-          <div style={{ ...reportTheme.headRow, borderBottom: 0, marginBottom: 4 }}>Process</div>
-          <div style={settingGrid}>{processFields.map(renderSetting)}</div>
-        </div>
-
-        {lineData.otherTimes?.length > 0 && (
-          <div style={reportTheme.block}>
-            <div style={{ ...troubleGrid, ...reportTheme.headRow }}>
-              <div>Time</div><div>Description</div><div></div><div></div>
+          <div style={{ ...reportTheme.headRow, borderBottom: 0, marginBottom: 4 }}>Batch Information</div>
+          <div style={sectionInset}>
+            <div style={{ ...batchGrid, ...reportTheme.headRow }}>
+              <div>Batch</div><div>Die</div><div>Description</div><div>Qty</div>
             </div>
-            {lineData.otherTimes.map((otherTime) => (
-              <div key={otherTime.id} style={{ ...troubleGrid, ...reportTheme.row, marginBottom: 4 }}>
-                <div>{otherTime.time || ""}</div>
-                <div>{otherTime.description || ""}</div>
-                <div></div>
-                <div></div>
+            {batchesToPrint.map((batch) => (
+              <div key={batch.id} style={{ ...batchGrid, ...reportTheme.row, marginBottom: 3 }}>
+                <div>{batch.batch || "-"}</div>
+                <div>{batch.die || ""}</div>
+                <div>{batch.description || ""}</div>
+                <div>{batch.quantity || ""}</div>
               </div>
             ))}
           </div>
-        )}
 
-        <div style={reportTheme.block}>
-          <div style={{ ...batchGrid, ...reportTheme.headRow }}>
-            <div>Batch</div><div>Die</div><div>Item #</div><div>Description</div><div>Qty</div>
-          </div>
-          {batchesToPrint.map((batch) => (
-            <div key={batch.id} style={{ ...batchGrid, ...reportTheme.row, marginBottom: 3 }}>
-              <div>{batch.batch || "-"}</div>
-              <div>{batch.die || ""}</div>
-              <div>{batch.itemNumber || ""}</div>
-              <div>{batch.description || ""}</div>
-              <div>{batch.quantity || ""}</div>
-            </div>
-          ))}
-        </div>
-
-        {materialRows.length > 0 && (
-          <div style={reportTheme.block}>
-            <div style={{ ...materialGrid, ...reportTheme.headRow }}>
-              <div>Item</div><div>Die</div><div>Batch</div><div>Natural</div><div>Color</div><div>Regrind</div><div>Additive</div>
-            </div>
-            {materialRows.map((row, index) => (
-              <div key={`${row.batch}-${index}`} style={{ ...materialGrid, ...reportTheme.row, marginBottom: 3 }}>
-                <div>{row.label || ""}</div>
-                <div>{row.die}</div>
-                <div>{row.batch}</div>
-                <div>{row.natural}</div>
-                <div>{row.color}</div>
-                <div>{row.regrind}</div>
-                <div>{row.additive}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {lineData.notes.length > 0 && (
-          <div style={reportTheme.block}>
-            <div style={{ ...troubleGrid, ...reportTheme.headRow }}>
-              <div>Die</div><div>Issue</div><div>Action</div><div>Result</div>
-            </div>
-            {lineData.notes.map((note) => {
-              const linkedBatch = lineData.batches.find((batch) => batch.id === note.batchId);
-              return (
-                <div key={note.id} style={{ ...troubleGrid, ...reportTheme.row, marginBottom: 4 }}>
-                  <div>{linkedBatch?.die || note.die || ""}</div>
-                  <div>{note.note || ""}</div>
-                  <div>{note.action || ""}</div>
-                  <div>{note.result || ""}</div>
+          {materialRows.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ ...reportTheme.headRow, borderBottom: 0, marginBottom: 4 }}>Materials</div>
+              <div style={sectionInset}>
+                <div style={{ ...materialGrid, ...reportTheme.headRow }}>
+                  <div>Natural</div><div>Color</div><div>Regrind</div><div>Additive</div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+                {materialRows.map((row, index) => (
+                  <div key={`${row.batch}-${index}`} style={{ ...materialGrid, ...reportTheme.row, marginBottom: 3 }}>
+                    <div>{row.natural}</div>
+                    <div>{row.color}</div>
+                    <div>{row.regrind}</div>
+                    <div>{row.additive}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {troubleshootRows.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ ...reportTheme.headRow, borderBottom: 0, marginBottom: 4 }}>Troubleshoot</div>
+              <div style={sectionInset}>
+                <div style={{ ...troubleGrid, ...reportTheme.headRow }}>
+                  <div>Issue</div><div>Action</div><div>Result</div>
+                </div>
+                {troubleshootRows.map((row, index) => (
+                  <div
+                    key={row.id}
+                    style={{
+                      ...troubleGrid,
+                      ...reportTheme.row,
+                      ...(row.issueStart && index > 0 ? { borderTop: "1px solid rgba(202,165,107,.55)", paddingTop: 4 } : {}),
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div>{row.issue}</div>
+                    <div>{row.action}</div>
+                    <div>{row.result}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function ReportScreen({ reportTab, selectedLine, onOpenReportPanel, goHome, goLineView, data, isPrintableReport, togglePrintableReport, ...props }) {
+function ReportScreen({ reportTab, selectedLine, onMenuClick, goHome, goLineView, data, isPrintableReport, togglePrintableReport, ...props }) {
   const reportTheme = getReportTheme(isPrintableReport);
   const printableButtonStyle = isPrintableReport ? reportTheme.activeButton : reportTheme.button;
 
@@ -1502,12 +2494,16 @@ function ReportScreen({ reportTab, selectedLine, onOpenReportPanel, goHome, goLi
 
           <div style={{ display: "flex", gap: 6, justifySelf: "stretch" }}>
             <Button small onClick={togglePrintableReport} style={{ ...printableButtonStyle, flex: "1 1 0", padding: "7px 5px", fontSize: 11 }}>Printable</Button>
-            <Button small onClick={onOpenReportPanel} style={{ ...reportTheme.button, flex: "1 1 0", padding: "7px 5px", fontSize: 11 }}>Reports</Button>
+            <Button small onClick={onMenuClick} style={{ ...reportTheme.button, flex: "1 1 0", padding: "7px 5px", fontSize: 11 }}>
+              <Menu size={14} aria-hidden="true" />
+              Menu
+            </Button>
           </div>
         </div>
       </Card>
 
       <Card style={reportTheme.card}>
+        {reportTab === "full" && <DailyReport data={data} isPrintableReport={isPrintableReport} {...props} />}
         {reportTab === "schedule" && <ScheduleReport data={data} isPrintableReport={isPrintableReport} {...props} />}
         {reportTab === "troubleshoot" && <TroubleshootReport data={data} isPrintableReport={isPrintableReport} {...props} />}
         {reportTab === "materials" && <MaterialsReport data={data} isPrintableReport={isPrintableReport} {...props} />}
@@ -1519,14 +2515,17 @@ function ReportScreen({ reportTab, selectedLine, onOpenReportPanel, goHome, goLi
 
 export default function App() {
   const [isExporting, setIsExporting] = useState(false);
-  const [shift, setShift] = useState("A");
-  const [date, setDate] = useState(todayString());
-  const [data, setData] = useState(() => loadSavedData(todayString()));
+  const [shift, setShift] = useState(getInitialShift);
+  const [date, setDate] = useState(getInitialDate);
+  const [data, setData] = useState(() => loadSavedData(getInitialDate()));
   const [selectedLine, setSelectedLine] = useState("1");
   const [screen, setScreen] = useState("lines");
   const [reportTab, setReportTab] = useState("schedule");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isReportPanelOpen, setIsReportPanelOpen] = useState(false);
+  const [isEditingLines, setIsEditingLines] = useState(false);
+  const [lineVisibility, setLineVisibility] = useState(loadLineVisibility);
+  const [collapseState, setCollapseState] = useState(loadCollapseState);
+  const [dieSettings, setDieSettings] = useState(loadDieSettings);
   const [isPrintableReport, setIsPrintableReport] = useState(false);
   const [showLineSettings, setShowLineSettings] = useState(false);
   const [newCoexNumber, setNewCoexNumber] = useState("02");
@@ -1536,7 +2535,39 @@ export default function App() {
     localStorage.setItem(`work-notes-${date}`, JSON.stringify(data));
   }, [data, date]);
 
+  useEffect(() => {
+    savePreference(ACTIVE_DATE_STORAGE_KEY, date);
+  }, [date]);
+
+  useEffect(() => {
+    savePreference(ACTIVE_SHIFT_STORAGE_KEY, shift);
+  }, [shift]);
+
+  useEffect(() => {
+    savePreference(LINE_VISIBILITY_STORAGE_KEY, JSON.stringify(normalizeLineVisibility(lineVisibility)));
+  }, [lineVisibility]);
+
+  useEffect(() => {
+    savePreference(UI_COLLAPSE_STORAGE_KEY, JSON.stringify(normalizeCollapseState(collapseState)));
+  }, [collapseState]);
+
+  useEffect(() => {
+    savePreference(DIE_SETTINGS_STORAGE_KEY, JSON.stringify(normalizeDieSettings(dieSettings)));
+  }, [dieSettings]);
+
   const selected = useMemo(() => data[selectedLine] || createLineData(), [data, selectedLine]);
+  const selectedCollapseKey = `${date}:${selectedLine}`;
+  const getCollapsed = (group, key) => Boolean(normalizeCollapseState(collapseState)[group]?.[key]);
+  const setCollapsed = (group, key, isCollapsed) => {
+    setCollapseState((previousState) => {
+      const normalizedState = normalizeCollapseState(previousState);
+      const nextGroup = { ...normalizedState[group] };
+      if (isCollapsed) nextGroup[key] = true;
+      else delete nextGroup[key];
+
+      return { ...normalizedState, [group]: nextGroup };
+    });
+  };
 
   const updateSelectedLine = (lineUpdater) => {
     setData((previousData) => ({
@@ -1545,17 +2576,133 @@ export default function App() {
     }));
   };
 
-  const updateOperator = (value) => updateSelectedLine((lineData) => ({ ...lineData, operator: value }));
-  const addOtherTime = () => updateSelectedLine((lineData) => ({ ...lineData, otherTimes: [...(lineData.otherTimes || []), createOtherTime()] }));
-  const updateOtherTime = (id, field, value) => {
+  const updateOperators = (operatorsUpdater) => {
+    updateSelectedLine((lineData) => {
+      const lineDataWithoutLegacyOperator = { ...lineData };
+      delete lineDataWithoutLegacyOperator.operator;
+      return {
+        ...lineDataWithoutLegacyOperator,
+        operators: operatorsUpdater(normalizeOperators(lineData)),
+      };
+    });
+  };
+  const addOperator = () => updateOperators((operators) => [...operators, createOperator()]);
+  const updateOperator = (id, value) => {
+    updateOperators((operators) => {
+      const hasMatch = operators.some((operator) => operator.id === id);
+      return operators.map((operator, index) => (
+        operator.id === id || (!hasMatch && index === 0) ? { ...operator, name: value } : operator
+      ));
+    });
+  };
+  const removeOperator = (id) => {
+    updateOperators((operators) => {
+      const nextOperators = operators.filter((operator) => operator.id !== id);
+      return nextOperators.length ? nextOperators : [createOperator()];
+    });
+  };
+  const addCalculator = (type) => {
+    if (!CALCULATOR_FIELDS[type]) return;
+    updateSelectedLine((lineData) => ({ ...lineData, calculators: [...normalizeLineCalculators(lineData.calculators), createLineCalculator(type)] }));
+  };
+  const updateCalculator = (id, field, value) => {
     updateSelectedLine((lineData) => ({
       ...lineData,
-      otherTimes: (lineData.otherTimes || []).map((otherTime) => (otherTime.id === id ? { ...otherTime, [field]: value } : otherTime)),
+      calculators: normalizeLineCalculators(lineData.calculators).map((calculator) => (
+        calculator.id === id ? { ...calculator, inputs: { ...calculator.inputs, [field]: value } } : calculator
+      )),
     }));
   };
-  const removeOtherTime = (id) => updateSelectedLine((lineData) => ({ ...lineData, otherTimes: (lineData.otherTimes || []).filter((otherTime) => otherTime.id !== id) }));
+  const removeCalculator = (id) => updateSelectedLine((lineData) => ({ ...lineData, calculators: normalizeLineCalculators(lineData.calculators).filter((calculator) => calculator.id !== id) }));
+  const updateGeneralNotes = (value) => updateSelectedLine((lineData) => ({ ...lineData, generalNotes: value }));
+  const addSettingsNote = () => updateSelectedLine((lineData) => ({ ...lineData, settingsNotes: [...normalizeSettingsNotes(lineData.settingsNotes), createSettingsNote()] }));
+  const updateSettingsNote = (id, value) => {
+    updateSelectedLine((lineData) => ({
+      ...lineData,
+      settingsNotes: normalizeSettingsNotes(lineData.settingsNotes).map((note) => (note.id === id ? { ...note, note: value } : note)),
+    }));
+  };
 
-  const addBatch = () => updateSelectedLine((lineData) => ({ ...lineData, batches: [...lineData.batches, createBatch()] }));
+  const saveDieSetting = () => {
+    const lineData = data[selectedLine] || createLineData();
+    const currentDieNumber = String(lineData.temperatures?.dieNumber || "").trim();
+    if (!hasText(currentDieNumber)) {
+      window.alert("Enter a Die # before saving.");
+      return;
+    }
+
+    setDieSettings((previousSettings) => {
+      const normalizedSettings = normalizeDieSettings(previousSettings);
+      return normalizeDieSettings([...normalizedSettings, createDieSettingFromLineData(lineData)]);
+    });
+    savePreference(`work-notes-${date}`, JSON.stringify(data));
+    document.activeElement?.blur?.();
+  };
+
+  const importLastDieSetting = () => {
+    const currentDieNumber = String((data[selectedLine] || createLineData()).temperatures?.dieNumber || "").trim();
+    if (!hasText(currentDieNumber)) {
+      window.alert("Enter a Die # before importing.");
+      return;
+    }
+
+    const matchingSettings = normalizeDieSettings(dieSettings)
+      .filter((setting) => setting.dieNumber.toLowerCase() === currentDieNumber.toLowerCase())
+      .sort((first, second) => String(second.savedAt || "").localeCompare(String(first.savedAt || "")));
+
+    if (!matchingSettings.length) {
+      window.alert(`No saved settings found for Die # ${currentDieNumber}.`);
+      return;
+    }
+
+    updateSelectedLine((lineData) => applyDieSettingToLineData(lineData, matchingSettings[0]));
+    document.activeElement?.blur?.();
+  };
+
+  const deleteDieSetting = (id) => {
+    if (!window.confirm("Delete this saved die setting?")) return;
+    setDieSettings((previousSettings) => normalizeDieSettings(previousSettings).filter((setting) => setting.id !== id));
+  };
+
+  const updateDieSetting = (id, settingUpdater) => {
+    setDieSettings((previousSettings) =>
+      normalizeDieSettings(previousSettings).map((setting) => (
+        setting.id === id ? normalizeDieSetting(settingUpdater(setting)) : setting
+      ))
+    );
+  };
+
+  const updateDieSettingTemperature = (id, field, value) => {
+    updateDieSetting(id, (setting) => {
+      const temperatures = { ...setting.temperatures, [field]: value };
+      if (field === DIE_NUMBER_FIELD[0]) temperatures.dieNumber = value;
+
+      return {
+        ...setting,
+        dieNumber: field === DIE_NUMBER_FIELD[0] ? value : setting.dieNumber,
+        temperatures,
+      };
+    });
+  };
+
+  const addDieSettingNote = (id) => {
+    updateDieSetting(id, (setting) => ({
+      ...setting,
+      settingsNotes: [...normalizeSettingsNotes(setting.settingsNotes), createSettingsNote()],
+    }));
+  };
+
+  const updateDieSettingNote = (id, noteId, value) => {
+    updateDieSetting(id, (setting) => ({
+      ...setting,
+      settingsNotes: normalizeSettingsNotes(setting.settingsNotes).map((note) => (note.id === noteId ? { ...note, note: value } : note)),
+    }));
+  };
+
+  const addBatch = () => updateSelectedLine((lineData) => {
+    const { batch, material } = createBatchWithMaterial();
+    return { ...lineData, batches: [...lineData.batches, batch], materials: [...lineData.materials, material] };
+  });
 
   const updateBatch = (id, field, value) => {
     updateSelectedLine((lineData) => ({
@@ -1569,16 +2716,18 @@ export default function App() {
   const removeBatch = (id) => {
     updateSelectedLine((lineData) => {
       const batches = lineData.batches.filter((batch) => batch.id !== id);
+      const materials = lineData.materials.filter((material) => material.batchId !== id);
+      if (batches.length) return { ...lineData, batches, materials: ensureMaterialsForBatches(batches, materials), notes: lineData.notes.filter((note) => note.batchId !== id) };
+
+      const { batch, material } = createBatchWithMaterial();
       return {
         ...lineData,
-        batches: batches.length ? batches : [createBatch()],
-        materials: lineData.materials.filter((material) => material.batchId !== id),
+        batches: [batch],
+        materials: [material],
         notes: lineData.notes.filter((note) => note.batchId !== id),
       };
     });
   };
-
-  const addMaterial = (batchId, batch) => updateSelectedLine((lineData) => ({ ...lineData, materials: [...lineData.materials, createMaterial(batchId, batch.batch, batch.die)] }));
 
   const updateMaterial = (id, field, value) => {
     updateSelectedLine((lineData) => ({
@@ -1589,8 +2738,12 @@ export default function App() {
 
   const removeMaterial = (id) => {
     updateSelectedLine((lineData) => {
+      const removedMaterial = lineData.materials.find((material) => material.id === id);
       const materials = lineData.materials.filter((material) => material.id !== id);
-      return { ...lineData, materials };
+      const batch = lineData.batches.find((lineBatch) => lineBatch.id === removedMaterial?.batchId) || (!removedMaterial?.batchId ? lineData.batches[0] : null);
+      if (!batch) return { ...lineData, materials };
+
+      return { ...lineData, materials: ensureMaterialsForBatches(lineData.batches, materials) };
     });
   };
 
@@ -1638,6 +2791,45 @@ export default function App() {
     }));
   };
 
+  const updateNoteActions = (id, actionsUpdater) => {
+    updateSelectedLine((lineData) => ({
+      ...lineData,
+      notes: lineData.notes.map((note) => (note.id === id ? { ...note, actions: actionsUpdater(note.actions || []) } : note)),
+    }));
+  };
+
+  const addNoteAction = (id, actionType = ACTION_TYPE_OTHER) => updateNoteActions(id, (actions) => [...actions, createTroubleshootAction("", [], actionType)]);
+  const updateNoteAction = (id, actionId, field, value) => {
+    updateNoteActions(id, (actions) => actions.map((action) => (action.id === actionId ? { ...action, [field]: value } : action)));
+  };
+  const updateNoteTemperatureAdjustment = (id, actionId, temperatureKey, value) => {
+    updateNoteActions(id, (actions) =>
+      actions.map((action) =>
+        action.id === actionId
+          ? { ...action, temperatureAdjustments: { ...createTemperatureAdjustments(), ...action.temperatureAdjustments, [temperatureKey]: value } }
+          : action
+      )
+    );
+  };
+  const deleteNoteAction = (id, actionId) => {
+    updateNoteActions(id, (actions) => actions.filter((action) => action.id !== actionId));
+  };
+  const addNoteResult = (id, actionId) => {
+    updateNoteActions(id, (actions) => actions.map((action) => (action.id === actionId ? { ...action, results: [...(action.results || []), createTroubleshootResult()] } : action)));
+  };
+  const updateNoteResult = (id, actionId, resultId, field, value) => {
+    updateNoteActions(id, (actions) =>
+      actions.map((action) =>
+        action.id === actionId
+          ? { ...action, results: (action.results || []).map((result) => (result.id === resultId ? { ...result, [field]: value } : result)) }
+          : action
+      )
+    );
+  };
+  const deleteNoteResult = (id, actionId, resultId) => {
+    updateNoteActions(id, (actions) => actions.map((action) => (action.id === actionId ? { ...action, results: (action.results || []).filter((result) => result.id !== resultId) } : action)));
+  };
+
   const deleteNote = (id) => updateSelectedLine((lineData) => ({ ...lineData, notes: lineData.notes.filter((note) => note.id !== id) }));
 
   const exportReportPdf = async () => {
@@ -1653,7 +2845,7 @@ export default function App() {
       const usableWidth = pageWidth - margin * 2;
       const imageHeight = (canvas.height * usableWidth) / canvas.width;
 
-      const reportName = reportTab === "line" ? `line_${selectedLine}` : reportTab;
+      const reportName = reportTab === "line" ? `line_${selectedLine}` : reportTab === "full" ? "daily_report" : reportTab;
       pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, margin, usableWidth, imageHeight);
       pdf.save(`${reportName}_${sanitizeFilename(date)}_shift_${shift}.pdf`);
     } catch (error) {
@@ -1665,6 +2857,7 @@ export default function App() {
   };
 
   const changeDate = (nextDate) => {
+    if (!isDateInputValue(nextDate)) return;
     setDate(nextDate);
     setData(loadSavedData(nextDate));
   };
@@ -1672,9 +2865,28 @@ export default function App() {
   const selectLine = (line) => {
     setSelectedLine(String(line));
     setScreen("entry");
+    setIsEditingLines(false);
     setShowLineSettings(false);
     setIsMenuOpen(false);
-    setIsReportPanelOpen(false);
+  };
+
+  const toggleLineVisibility = (lineKey) => {
+    setLineVisibility((previousVisibility) => ({
+      ...normalizeLineVisibility(previousVisibility),
+      [lineKey]: !isLineVisible(previousVisibility, lineKey),
+    }));
+  };
+
+  const toggleLineGroupVisibility = (group) => {
+    setLineVisibility((previousVisibility) => {
+      const normalizedVisibility = normalizeLineVisibility(previousVisibility);
+      const nextGroupVisible = !isGroupVisible(normalizedVisibility, group);
+
+      return {
+        ...normalizedVisibility,
+        ...Object.fromEntries(group.lines.map((line) => [String(line), nextGroupVisible])),
+      };
+    });
   };
 
   const moveLine = (direction) => {
@@ -1689,11 +2901,11 @@ export default function App() {
 
   const moveScreen = (direction) => {
     const currentIndex = SCREENS.indexOf(screen);
+    if (currentIndex < 0) return;
     const nextScreen = SCREENS[currentIndex + direction];
     if (nextScreen) {
       setScreen(nextScreen);
       setIsMenuOpen(false);
-      setIsReportPanelOpen(false);
     }
   };
 
@@ -1701,59 +2913,49 @@ export default function App() {
     setScreen("lines");
     setShowLineSettings(false);
     setIsMenuOpen(false);
-    setIsReportPanelOpen(false);
   };
 
   const goLineView = () => {
     setScreen("entry");
+    setIsEditingLines(false);
     setShowLineSettings(false);
     setIsMenuOpen(false);
-    setIsReportPanelOpen(false);
   };
 
   const goLineReport = () => {
     setReportTab("line");
     setScreen("report");
+    setIsEditingLines(false);
     setShowLineSettings(false);
     setIsMenuOpen(false);
-    setIsReportPanelOpen(false);
   };
 
   const closeMenu = () => {
     setIsMenuOpen(false);
-    setIsReportPanelOpen(false);
   };
 
   const toggleMenu = () => {
-    if (isMenuOpen) setIsReportPanelOpen(false);
     setIsMenuOpen((isOpen) => !isOpen);
-  };
-
-  const openReportPanel = () => {
-    setIsMenuOpen(true);
-    setIsReportPanelOpen(true);
   };
 
   const selectReport = (tab) => {
     setReportTab(tab);
     setScreen("report");
+    setIsEditingLines(false);
     setShowLineSettings(false);
     setIsMenuOpen(false);
-    setIsReportPanelOpen(false);
   };
 
-  const selectReportLine = (line) => {
-    setSelectedLine(String(line));
-    setReportTab("line");
-    setScreen("report");
+  const openDieSettingsList = () => {
+    setScreen("dieSettings");
     setShowLineSettings(false);
+    setIsEditingLines(false);
     setIsMenuOpen(false);
-    setIsReportPanelOpen(false);
   };
 
   const handleTouchEnd = (event) => {
     if (touchStartX == null) return;
-    if (isMenuOpen || isReportPanelOpen) {
+    if (isMenuOpen) {
       setTouchStartX(null);
       return;
     }
@@ -1781,20 +2983,41 @@ export default function App() {
     goLineReport,
     showSettings: showLineSettings,
     toggleSettings: () => setShowLineSettings((isOpen) => !isOpen),
+    addOperator,
     updateOperator,
+    removeOperator,
     updateTemperature: (field, value) => updateSelectedLine((lineData) => ({ ...lineData, temperatures: { ...createTemperatures(), ...lineData.temperatures, [field]: value } })),
-    addOtherTime,
-    updateOtherTime,
-    removeOtherTime,
+    addCalculator,
+    updateCalculator,
+    removeCalculator,
+    updateGeneralNotes,
+    addSettingsNote,
+    updateSettingsNote,
+    saveDieSetting,
+    importLastDieSetting,
+    lineRateCollapsed: getCollapsed("lineRate", selectedCollapseKey),
+    setLineRateCollapsed: (isCollapsed) => setCollapsed("lineRate", selectedCollapseKey, isCollapsed),
+    notesCollapsed: getCollapsed("notes", selectedCollapseKey),
+    setNotesCollapsed: (isCollapsed) => setCollapsed("notes", selectedCollapseKey, isCollapsed),
+    calculatorsCollapsed: getCollapsed("calculators", selectedCollapseKey),
+    setCalculatorsCollapsed: (isCollapsed) => setCollapsed("calculators", selectedCollapseKey, isCollapsed),
+    getTroubleshootCollapsed: (noteId) => getCollapsed("troubleshoot", `${selectedCollapseKey}:${noteId}`),
+    setTroubleshootCollapsed: (noteId, isCollapsed) => setCollapsed("troubleshoot", `${selectedCollapseKey}:${noteId}`, isCollapsed),
     addBatch,
     updateBatch,
     removeBatch,
     addNote,
     updateNote,
+    addNoteAction,
+    updateNoteAction,
+    updateNoteTemperatureAdjustment,
+    deleteNoteAction,
+    addNoteResult,
+    updateNoteResult,
+    deleteNoteResult,
     deleteNote,
     newCoexNumber,
     setNewCoexNumber,
-    addMaterial,
     removeMaterial,
     updateMaterial,
     addCoex,
@@ -1811,7 +3034,7 @@ export default function App() {
     goHome,
     goLineView,
     selectedLine,
-    onOpenReportPanel: openReportPanel,
+    onMenuClick: toggleMenu,
     isPrintableReport,
     togglePrintableReport: () => setIsPrintableReport((isPrintable) => !isPrintable),
   };
@@ -1823,23 +3046,14 @@ export default function App() {
         {isMenuOpen && (
           <SidePanel
             screen={screen}
-            reportPanelOpen={isReportPanelOpen}
+            reportTab={reportTab}
             date={date}
             shift={shift}
+            isDieNumberActive={screen === "dieSettings"}
             onDateChange={changeDate}
             onShiftChange={setShift}
-            onHomeClick={goHome}
-            onReportsClick={openReportPanel}
-            onClose={closeMenu}
-          />
-        )}
-        {isReportPanelOpen && (
-          <ReportSidePanel
-            reportTab={reportTab}
-            selectedLine={selectedLine}
             onSelectReport={selectReport}
-            onSelectLine={selectReportLine}
-            onClose={() => setIsReportPanelOpen(false)}
+            onSelectDieNumber={openDieSettingsList}
           />
         )}
 
@@ -1849,12 +3063,35 @@ export default function App() {
               <HomeHeader
                 menuOpen={isMenuOpen}
                 onMenuClick={toggleMenu}
+                isEditingLines={isEditingLines}
+                onEditClick={() => setIsEditingLines((isEditing) => !isEditing)}
               />
-              <LinesScreen data={data} selectedLine={selectedLine} onSelectLine={selectLine} />
+              <LinesScreen
+                data={data}
+                selectedLine={selectedLine}
+                onSelectLine={selectLine}
+                lineVisibility={lineVisibility}
+                isEditingLines={isEditingLines}
+                onToggleLine={toggleLineVisibility}
+                onToggleLineGroup={toggleLineGroupVisibility}
+              />
             </>
           )}
 
           {screen === "entry" && <EntryScreen {...sharedEntryProps} />}
+
+          {screen === "dieSettings" && (
+            <DieSettingsScreen
+              dieSettings={normalizeDieSettings(dieSettings)}
+              goHome={goHome}
+              goLineView={goLineView}
+              onMenuClick={toggleMenu}
+              onDeleteDieSetting={deleteDieSetting}
+              onUpdateDieSettingTemperature={updateDieSettingTemperature}
+              onAddDieSettingNote={addDieSettingNote}
+              onUpdateDieSettingNote={updateDieSettingNote}
+            />
+          )}
 
           {screen === "report" && <ReportScreen reportTab={reportTab} {...sharedReportProps} />}
         </div>

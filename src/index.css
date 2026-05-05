@@ -1,9 +1,9 @@
 html {
+  min-width: 320px;
   background: #0a0f12;
 }
 
 body {
-  min-width: 320px;
   margin: 0;
   color: #f1dfb6;
   font-family: Georgia, "Times New Roman", serif;

@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$project = "C:\Users\theca\work-notes-app"
+$project = $PSScriptRoot
 $port = 5173
 
 while (Get-NetTCPConnection -LocalAddress "127.0.0.1" -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {

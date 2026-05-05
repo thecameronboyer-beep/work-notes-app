@@ -35,19 +35,21 @@ Important: the app saves notes in each browser's local storage. Sharing the app 
 
 ## Share It With Anyone Online
 
-This project is set up for GitHub Pages. After the latest code is pushed to GitHub, GitHub Actions can publish it here:
+This project is deployed with Vercel here:
 
 ```text
-https://thecameronboyer-beep.github.io/work-notes-app/
+https://work-notes-app.vercel.app/
 ```
 
-In the GitHub repo, make sure Pages is set to deploy from GitHub Actions:
+To update that live site from this folder, double-click:
 
 ```text
-Settings -> Pages -> Build and deployment -> Source -> GitHub Actions
+update-vercel.cmd
 ```
 
-Once the deploy action finishes, anyone can open that URL. Each person stores their own data in their own browser.
+The first time, Vercel may ask you to log in and link this folder to the existing `work-notes-app` project. After that, the script builds the app and deploys it to production.
+
+Each person stores their own data in their own browser.
 
 ## Developer Commands
 
@@ -59,4 +61,5 @@ npm run build:github
 npm run preview
 npm run preview:share
 npm run lint
+npx vercel --prod
 ```

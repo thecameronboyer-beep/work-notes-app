@@ -1,5 +1,5 @@
 @echo off
-cd /d "C:\Users\theca\work-notes-app"
+cd /d "%~dp0"
 
 git add src/App.jsx
 if errorlevel 1 goto error
