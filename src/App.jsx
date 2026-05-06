@@ -3,13 +3,16 @@ import { Clock, Home, Menu, Minus, Pencil, Plus, Settings, X } from "lucide-reac
 
 const LINE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 25, 26, 27, 28, 29, 30, 31];
 const SHIFT_OPTIONS = ["A", "B", "C"];
-const REPORT_TABS = ["schedule", "materials", "troubleshoot", "full"];
+const REPORT_TABS = ["schedule", "materials", "troubleshoot", "full", "weekly"];
 const SCREENS = ["lines", "entry", "report"];
 const ACTIVE_DATE_STORAGE_KEY = "work-notes-active-date";
 const ACTIVE_SHIFT_STORAGE_KEY = "work-notes-active-shift";
 const LINE_VISIBILITY_STORAGE_KEY = "work-notes-line-visibility";
 const UI_COLLAPSE_STORAGE_KEY = "work-notes-ui-collapse";
 const DIE_SETTINGS_STORAGE_KEY = "work-notes-die-settings";
+const PDF_MARGIN = 24;
+const PDF_CANVAS_SCALE = 3;
+const PDF_CARD_SPLIT_BLANK_THRESHOLD = 0.2;
 const ACTION_TYPE_TEMP_ADJUSTMENT = "tempAdjustment";
 const ACTION_TYPE_OTHER = "other";
 const ACTION_TYPE_OPTIONS = [
@@ -392,6 +395,31 @@ const currentTimeString = () => {
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 };
 const isDateInputValue = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+const parseWorkDate = (value) => {
+  if (!isDateInputValue(value)) return new Date();
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+const toDateInputValue = (dateValue) => {
+  const year = dateValue.getFullYear();
+  const month = String(dateValue.getMonth() + 1).padStart(2, "0");
+  const day = String(dateValue.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+const addDays = (dateValue, days) => {
+  const nextDate = new Date(dateValue);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+};
+const getWeekDateValues = (workDate) => {
+  const selectedDate = parseWorkDate(workDate);
+  const sunday = addDays(selectedDate, -selectedDate.getDay());
+  return Array.from({ length: 7 }, (_, index) => toDateInputValue(addDays(sunday, index)));
+};
+const formatWeekRange = (workDate) => {
+  const weekDates = getWeekDateValues(workDate);
+  return `${formatDisplayDate(weekDates[0])} - ${formatDisplayDate(weekDates[6])}`;
+};
 const getInitialDate = () => {
   if (typeof localStorage === "undefined") return todayString();
   const savedDate = localStorage.getItem(ACTIVE_DATE_STORAGE_KEY);
@@ -459,6 +487,68 @@ const formatDisplayDate = (iso) => {
 
 const sanitizeFilename = (value) => String(value || "report").replace(/[^a-z0-9-_]+/gi, "_");
 const hasText = (value) => String(value || "").trim().length > 0;
+const getPdfCardBounds = (reportElement, canvas) => {
+  const reportRect = reportElement.getBoundingClientRect();
+  if (!reportRect.height) return [];
+
+  const scaleY = canvas.height / reportRect.height;
+
+  return Array.from(reportElement.querySelectorAll("[data-pdf-card='true']"))
+    .map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        top: Math.max(0, (rect.top - reportRect.top) * scaleY),
+        bottom: Math.min(canvas.height, (rect.bottom - reportRect.top) * scaleY),
+      };
+    })
+    .filter((bound) => bound.bottom > bound.top)
+    .sort((first, second) => first.top - second.top);
+};
+const choosePdfPageBottom = (pageTop, idealBottom, pageHeight, contentHeight, cardBounds) => {
+  if (idealBottom >= contentHeight) return contentHeight;
+
+  const crossingCard = cardBounds.find((bound) => bound.top > pageTop + 1 && bound.top < idealBottom - 1 && bound.bottom > idealBottom + 1);
+  if (!crossingCard) return idealBottom;
+
+  const blankHeightIfMoved = idealBottom - crossingCard.top;
+  return blankHeightIfMoved / pageHeight < PDF_CARD_SPLIT_BLANK_THRESHOLD ? crossingCard.top : idealBottom;
+};
+const getPdfPageSlices = (contentHeight, pageHeight, cardBounds) => {
+  const slices = [];
+  let pageTop = 0;
+
+  while (pageTop < contentHeight - 1) {
+    const idealBottom = Math.min(pageTop + pageHeight, contentHeight);
+    let pageBottom = choosePdfPageBottom(pageTop, idealBottom, pageHeight, contentHeight, cardBounds);
+
+    if (pageBottom <= pageTop + 1) {
+      pageBottom = idealBottom;
+    }
+
+    slices.push({ top: pageTop, bottom: pageBottom });
+    pageTop = pageBottom;
+  }
+
+  return slices.length ? slices : [{ top: 0, bottom: contentHeight }];
+};
+const createPdfSliceCanvas = (sourceCanvas, slice, backgroundColor) => {
+  const top = Math.max(0, Math.floor(slice.top));
+  const bottom = Math.min(sourceCanvas.height, Math.ceil(slice.bottom));
+  const height = Math.max(1, bottom - top);
+  const sliceCanvas = document.createElement("canvas");
+  const context = sliceCanvas.getContext("2d");
+
+  sliceCanvas.width = sourceCanvas.width;
+  sliceCanvas.height = height;
+
+  if (context) {
+    context.fillStyle = backgroundColor;
+    context.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+    context.drawImage(sourceCanvas, 0, top, sourceCanvas.width, height, 0, 0, sourceCanvas.width, height);
+  }
+
+  return sliceCanvas;
+};
 const hasMaterialContent = (material) =>
   [
     material.batch,
@@ -565,6 +655,7 @@ const calculateLineCalculatorResult = (calculator) => {
 };
 const tabLabel = (tab) => {
   if (tab === "full") return "Daily Report";
+  if (tab === "weekly") return "Weekly Report";
   if (tab === "troubleshoot") return "Troubleshoot";
   return tab[0].toUpperCase() + tab.slice(1);
 };
@@ -606,8 +697,8 @@ const createBatchWithMaterial = () => {
 };
 const createOperator = (name = "") => ({ id: makeId(), name });
 const createTemperatureAdjustments = () => Object.fromEntries(TEMPERATURE_FIELDS.map(([key]) => [key, ""]));
-const createTroubleshootResult = (result = "", timestamp = currentTimeString()) => ({ id: makeId(), timestamp, result });
-const createTroubleshootAction = (action = "", results = [], actionType = ACTION_TYPE_OTHER, temperatureAdjustments = createTemperatureAdjustments(), timestamp = currentTimeString()) => ({
+const createTroubleshootResult = (result = "", timestamp = "") => ({ id: makeId(), timestamp, result });
+const createTroubleshootAction = (action = "", results = [], actionType = ACTION_TYPE_OTHER, temperatureAdjustments = createTemperatureAdjustments(), timestamp = "") => ({
   id: makeId(),
   timestamp,
   actionType,
@@ -615,7 +706,7 @@ const createTroubleshootAction = (action = "", results = [], actionType = ACTION
   temperatureAdjustments,
   results,
 });
-const createNote = (batchId = "", die = "") => ({ id: makeId(), batchId, timestamp: currentTimeString(), note: "", actions: [], die, confirmed: false });
+const createNote = (batchId = "", die = "") => ({ id: makeId(), batchId, timestamp: "", note: "", actions: [], die, confirmed: false });
 const createSettingsNote = (note = "") => ({ id: makeId(), note });
 const createTemperatures = () => Object.fromEntries(ALL_SETTING_FIELDS.map(([key]) => [key, ""]));
 const createLineCalculator = (type = CALCULATOR_GRAM_RPM) => ({ id: makeId(), type, inputs: createCalculatorInputs(type) });
@@ -969,6 +1060,12 @@ const formatTroubleshootAction = (action, temperatures = {}) => {
   const parts = [actionTypeLabel(action.actionType), action.action, formatTemperatureAdjustmentSummary(action, temperatures)];
   return parts.filter(hasText).join(": ");
 };
+const valueWithTimestamp = (timestamp, value) => {
+  const cleanValue = String(value || "");
+  if (!hasText(timestamp)) return cleanValue;
+  return hasText(cleanValue) ? `${timestamp} ${cleanValue}` : timestamp;
+};
+const bulletValue = (value, shouldBullet) => (shouldBullet && hasText(value) ? `• ${value}` : value);
 
 const getTroubleshootRowsForLine = (line, lineData) => {
   const rows = [];
@@ -983,25 +1080,28 @@ const getTroubleshootRowsForLine = (line, lineData) => {
     const actions = note.actions || [];
     let isIssueStart = true;
     const pushIssueRow = (row) => {
-      rows.push({ ...row, noteId: note.id, issueStart: isIssueStart });
+      const issueStart = isIssueStart;
+      rows.push({ ...row, issue: issueStart ? row.issue : "", noteId: note.id, issueStart });
       isIssueStart = false;
     };
 
     if (!actions.length) {
-      pushIssueRow({ line, die, issue: note.note || "", action: "", result: "", id: note.id });
+      pushIssueRow({ line, die, issue: valueWithTimestamp(note.timestamp, note.note), action: "", result: "", id: note.id });
       return;
     }
 
     actions.forEach((action) => {
       const actionText = formatTroubleshootAction(action, lineData.temperatures);
+      const issueText = valueWithTimestamp(note.timestamp, note.note);
+      const actionTextWithTimestamp = bulletValue(valueWithTimestamp(action.timestamp, actionText), actions.length > 1);
 
       if (!action.results?.length) {
-        pushIssueRow({ line, die, issue: note.note || "", action: actionText, result: "", id: `${note.id}-${action.id}` });
+        pushIssueRow({ line, die, issue: issueText, action: actionTextWithTimestamp, result: "", id: `${note.id}-${action.id}` });
         return;
       }
 
       action.results.forEach((result) => {
-        pushIssueRow({ line, die, issue: note.note || "", action: actionText, result: result.result || "", id: `${note.id}-${action.id}-${result.id}` });
+        pushIssueRow({ line, die, issue: issueText, action: actionTextWithTimestamp, result: valueWithTimestamp(result.timestamp, result.result), id: `${note.id}-${action.id}-${result.id}` });
       });
     });
   });
@@ -1041,7 +1141,7 @@ function Field({ label, value, onChange, textarea = false, type = "text" }) {
 
 function TimestampInput({ value, onChange, label }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [hasStamped, setHasStamped] = useState(false);
+  const [hasStamped, setHasStamped] = useState(() => hasText(value));
 
   const handleClick = () => {
     if (!hasStamped) {
@@ -1231,13 +1331,16 @@ function SidePanel({ screen, reportTab, date, shift, isDieNumberActive, onDateCh
   );
 }
 
-function ReportHeader({ title, date, shift, printable }) {
+function ReportHeader({ title, date, shift, printable, dateLabel }) {
   const reportTheme = getReportTheme(printable);
+  const dateStyle = dateLabel
+    ? { fontSize: 11, fontWeight: 700, textAlign: "center", whiteSpace: "nowrap" }
+    : { fontSize: 13, fontWeight: 700, textAlign: "left" };
 
   return (
     <div style={reportTheme.header}>
       <div style={{ fontSize: 13, fontWeight: 700 }}>{title}</div>
-      <div style={{ fontSize: 13, fontWeight: 700, textAlign: "left" }}>{formatDisplayDate(date)}</div>
+      <div style={dateStyle}>{dateLabel || formatDisplayDate(date)}</div>
       <div style={{ fontSize: 13, fontWeight: 700, textAlign: "right" }}>Shift {shift}</div>
     </div>
   );
@@ -2157,7 +2260,7 @@ function ScheduleReport({ data, date, shift, exportReportPdf, isExporting, isPri
       <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title="Schedule" date={date} shift={shift} printable={isPrintableReport} />
-        <div style={reportTheme.block}>
+        <div data-pdf-card="true" style={reportTheme.block}>
           <div style={{ ...grid, ...reportTheme.headRow }}>
             <div>Line</div><div>Operator</div><div style={batchColumn}>Batch</div><div>Die</div><div>Description</div><div>Qty</div>
           </div>
@@ -2199,7 +2302,7 @@ function TroubleshootReport({ data, date, shift, exportReportPdf, isExporting, i
       <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title="Troubleshoot" date={date} shift={shift} printable={isPrintableReport} />
-        <div style={reportTheme.block}>
+        <div data-pdf-card="true" style={reportTheme.block}>
           <div style={{ ...grid, ...reportTheme.headRow }}>
             <div>Line</div><div>Die</div><div>Issue</div><div>Action</div><div>Result</div>
           </div>
@@ -2240,7 +2343,7 @@ function MaterialsReport({ data, date, shift, exportReportPdf, isExporting, isPr
       <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title="Materials" date={date} shift={shift} printable={isPrintableReport} />
-        <div style={reportTheme.block}>
+        <div data-pdf-card="true" style={reportTheme.block}>
           <div style={{ ...grid, ...reportTheme.headRow }}>
             <div>Line</div><div>Die</div><div>Batch</div><div>Natural</div><div>Color</div><div>Regrind</div><div>Additive</div>
           </div>
@@ -2266,100 +2369,130 @@ function MaterialsReport({ data, date, shift, exportReportPdf, isExporting, isPr
   );
 }
 
-function DailyReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+function DailyReportLineCards({ data, reportTheme, lineTitleFor = (line) => `Line ${line}`, cardKeyPrefix = "" }) {
   const scheduleGrid = { display: "grid", gridTemplateColumns: "48px 45px 30px 1fr 48px", columnGap: 2, textAlign: "left" };
   const materialGrid = { display: "grid", gridTemplateColumns: "45px 45px 1fr 1fr 1fr 1fr", columnGap: 2 };
   const troubleGrid = { display: "grid", gridTemplateColumns: "42px 1fr 1fr 1fr", columnGap: 2 };
-  const reportTheme = getReportTheme(isPrintableReport);
   const sectionTitle = { ...reportTheme.headRow, borderBottom: 0, marginBottom: 4 };
   const batchColumn = { paddingLeft: 6, boxSizing: "border-box" };
+
+  return Object.entries(data).map(([line, lineData]) => {
+    const filledBatches = getFilledBatches(lineData);
+    const operatorText = getOperatorText(lineData);
+    const materialRows = getMaterialRowsForReport(line, lineData);
+    const troubleshootRows = getTroubleshootRowsForLine(line, lineData);
+    const generalNotes = lineData.generalNotes || "";
+    const hasContent = hasText(operatorText) || filledBatches.length > 0 || materialRows.length > 0 || troubleshootRows.length > 0 || hasText(generalNotes);
+    if (!hasContent) return null;
+
+    const rowsToPrint = filledBatches.length ? filledBatches : [createBatch()];
+
+    return (
+      <div key={`${cardKeyPrefix}${line}`} data-pdf-card="true" style={reportTheme.block}>
+        <div style={sectionTitle}>{lineTitleFor(line)}</div>
+        <div style={{ ...scheduleGrid, ...reportTheme.headRow }}>
+          <div>Operator</div><div style={batchColumn}>Batch</div><div>Die</div><div>Description</div><div>Qty</div>
+        </div>
+        {rowsToPrint.map((batch, index) => (
+          <div key={batch.id} style={{ ...scheduleGrid, ...reportTheme.row, marginBottom: index === rowsToPrint.length - 1 ? 0 : 2 }}>
+            <div>{index === 0 ? operatorText || "-" : ""}</div>
+            <div style={batchColumn}>{batch.batch || "-"}</div>
+            <div>{batch.die || ""}</div>
+            <div>{batch.description || ""}</div>
+            <div>{batch.quantity || ""}</div>
+          </div>
+        ))}
+
+        {materialRows.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div style={sectionTitle}>Materials</div>
+            <div style={{ ...materialGrid, ...reportTheme.headRow }}>
+              <div>Die</div><div>Batch</div><div>Natural</div><div>Color</div><div>Regrind</div><div>Additive</div>
+            </div>
+            {materialRows.map((row, index) => (
+              <div key={`${line}-${index}-${row.batch}`} style={{ ...materialGrid, ...reportTheme.row, marginBottom: 2 }}>
+                <div style={{ textAlign: "left" }}>{row.die}</div>
+                <div style={{ textAlign: "left" }}>{row.batch}</div>
+                <div style={{ textAlign: "left" }}>{row.natural}</div>
+                <div style={{ textAlign: "left" }}>{row.color}</div>
+                <div style={{ textAlign: "left" }}>{row.regrind}</div>
+                <div style={{ textAlign: "left" }}>{row.additive}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {troubleshootRows.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div style={sectionTitle}>Troubleshoot</div>
+            <div style={{ ...troubleGrid, ...reportTheme.headRow }}>
+              <div>Die</div><div>Issue</div><div>Action</div><div>Result</div>
+            </div>
+            {troubleshootRows.map((row, index) => (
+              <div
+                key={row.id}
+                style={{
+                  ...troubleGrid,
+                  ...reportTheme.row,
+                  ...(row.issueStart && index > 0 ? { borderTop: "1px solid rgba(202,165,107,.55)", paddingTop: 4 } : {}),
+                  marginBottom: 4,
+                }}
+              >
+                <div>{row.die}</div>
+                <div>{row.issue}</div>
+                <div>{row.action}</div>
+                <div>{row.result}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasText(generalNotes) && (
+          <div style={{ marginTop: 8 }}>
+            <div style={sectionTitle}>General Notes</div>
+            <div style={{ ...reportTheme.row, whiteSpace: "pre-wrap" }}>{generalNotes}</div>
+          </div>
+        )}
+      </div>
+    );
+  });
+}
+
+function DailyReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+  const reportTheme = getReportTheme(isPrintableReport);
 
   return (
     <div>
       <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title="Daily Report" date={date} shift={shift} printable={isPrintableReport} />
+        <DailyReportLineCards data={data} reportTheme={reportTheme} />
+      </div>
+    </div>
+  );
+}
 
-        {Object.entries(data).map(([line, lineData]) => {
-          const filledBatches = getFilledBatches(lineData);
-          const operatorText = getOperatorText(lineData);
-          const materialRows = getMaterialRowsForReport(line, lineData);
-          const troubleshootRows = getTroubleshootRowsForLine(line, lineData);
-          const generalNotes = lineData.generalNotes || "";
-          const hasContent = hasText(operatorText) || filledBatches.length > 0 || materialRows.length > 0 || troubleshootRows.length > 0 || hasText(generalNotes);
-          if (!hasContent) return null;
+function WeeklyReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+  const reportTheme = getReportTheme(isPrintableReport);
+  const weekEntries = useMemo(() => getWeekDateValues(date).map((workDate) => ({
+    date: workDate,
+    data: workDate === date ? data : loadSavedData(workDate),
+  })), [data, date]);
 
-          const rowsToPrint = filledBatches.length ? filledBatches : [createBatch()];
-
-          return (
-            <div key={line} style={reportTheme.block}>
-              <div style={sectionTitle}>Line {line}</div>
-              <div style={{ ...scheduleGrid, ...reportTheme.headRow }}>
-                <div>Operator</div><div style={batchColumn}>Batch</div><div>Die</div><div>Description</div><div>Qty</div>
-              </div>
-              {rowsToPrint.map((batch, index) => (
-                <div key={batch.id} style={{ ...scheduleGrid, ...reportTheme.row, marginBottom: index === rowsToPrint.length - 1 ? 0 : 2 }}>
-                  <div>{index === 0 ? operatorText || "-" : ""}</div>
-                  <div style={batchColumn}>{batch.batch || "-"}</div>
-                  <div>{batch.die || ""}</div>
-                  <div>{batch.description || ""}</div>
-                  <div>{batch.quantity || ""}</div>
-                </div>
-              ))}
-
-              {materialRows.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={sectionTitle}>Materials</div>
-                  <div style={{ ...materialGrid, ...reportTheme.headRow }}>
-                    <div>Die</div><div>Batch</div><div>Natural</div><div>Color</div><div>Regrind</div><div>Additive</div>
-                  </div>
-                  {materialRows.map((row, index) => (
-                    <div key={`${line}-${index}-${row.batch}`} style={{ ...materialGrid, ...reportTheme.row, marginBottom: 2 }}>
-                      <div style={{ textAlign: "left" }}>{row.die}</div>
-                      <div style={{ textAlign: "left" }}>{row.batch}</div>
-                      <div style={{ textAlign: "left" }}>{row.natural}</div>
-                      <div style={{ textAlign: "left" }}>{row.color}</div>
-                      <div style={{ textAlign: "left" }}>{row.regrind}</div>
-                      <div style={{ textAlign: "left" }}>{row.additive}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {troubleshootRows.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={sectionTitle}>Troubleshoot</div>
-                  <div style={{ ...troubleGrid, ...reportTheme.headRow }}>
-                    <div>Die</div><div>Issue</div><div>Action</div><div>Result</div>
-                  </div>
-                  {troubleshootRows.map((row, index) => (
-                    <div
-                      key={row.id}
-                      style={{
-                        ...troubleGrid,
-                        ...reportTheme.row,
-                        ...(row.issueStart && index > 0 ? { borderTop: "1px solid rgba(202,165,107,.55)", paddingTop: 4 } : {}),
-                        marginBottom: 4,
-                      }}
-                    >
-                      <div>{row.die}</div>
-                      <div>{row.issue}</div>
-                      <div>{row.action}</div>
-                      <div>{row.result}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {hasText(generalNotes) && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={sectionTitle}>General Notes</div>
-                  <div style={{ ...reportTheme.row, whiteSpace: "pre-wrap" }}>{generalNotes}</div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+  return (
+    <div>
+      <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
+      <div id="print-area" style={reportTheme.shell}>
+        <ReportHeader title="Weekly Report" date={date} dateLabel={formatWeekRange(date)} shift={shift} printable={isPrintableReport} />
+        {weekEntries.map((entry) => (
+          <DailyReportLineCards
+            key={entry.date}
+            data={entry.data}
+            reportTheme={reportTheme}
+            cardKeyPrefix={`${entry.date}-`}
+            lineTitleFor={(line) => `Line ${line} - ${formatDisplayDate(entry.date)}`}
+          />
+        ))}
       </div>
     </div>
   );
@@ -2393,7 +2526,7 @@ function LineReport({ selectedLine, data, date, shift, exportReportPdf, isExport
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title={`Line ${selectedLine} Report`} date={date} shift={shift} printable={isPrintableReport} />
 
-        <div style={reportTheme.block}>
+        <div data-pdf-card="true" style={reportTheme.block}>
           <div style={{ ...reportTheme.headRow, borderBottom: 0, marginBottom: 4 }}>Line Information</div>
           <div style={settingGrid}>
             {[
@@ -2405,7 +2538,7 @@ function LineReport({ selectedLine, data, date, shift, exportReportPdf, isExport
           </div>
         </div>
 
-        <div style={reportTheme.block}>
+        <div data-pdf-card="true" style={reportTheme.block}>
           <div style={{ ...reportTheme.headRow, borderBottom: 0, marginBottom: 4 }}>Batch Information</div>
           <div style={sectionInset}>
             <div style={{ ...batchGrid, ...reportTheme.headRow }}>
@@ -2502,6 +2635,7 @@ function ReportScreen({ reportTab, selectedLine, onMenuClick, goHome, goLineView
 
       <Card style={reportTheme.card}>
         {reportTab === "full" && <DailyReport data={data} isPrintableReport={isPrintableReport} {...props} />}
+        {reportTab === "weekly" && <WeeklyReport data={data} isPrintableReport={isPrintableReport} {...props} />}
         {reportTab === "schedule" && <ScheduleReport data={data} isPrintableReport={isPrintableReport} {...props} />}
         {reportTab === "troubleshoot" && <TroubleshootReport data={data} isPrintableReport={isPrintableReport} {...props} />}
         {reportTab === "materials" && <MaterialsReport data={data} isPrintableReport={isPrintableReport} {...props} />}
@@ -2838,16 +2972,28 @@ export default function App() {
       setIsExporting(true);
       const [{ default: html2canvas }, jspdfModule] = await Promise.all([import("html2canvas"), import("jspdf")]);
       const JsPDF = jspdfModule.default || jspdfModule.jsPDF;
-      const canvas = await html2canvas(reportElement, { scale: 3, backgroundColor: isPrintableReport ? "#ffffff" : "#10181c", useCORS: true });
+      const backgroundColor = isPrintableReport ? "#ffffff" : "#10181c";
+      const canvas = await html2canvas(reportElement, { scale: PDF_CANVAS_SCALE, backgroundColor, useCORS: true });
       const pdf = new JsPDF({ orientation: "p", unit: "pt", format: "letter" });
-      const margin = 24;
       const pageWidth = pdf.internal.pageSize.getWidth();
-      const usableWidth = pageWidth - margin * 2;
-      const imageHeight = (canvas.height * usableWidth) / canvas.width;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const usableWidth = pageWidth - PDF_MARGIN * 2;
+      const usableHeight = pageHeight - PDF_MARGIN * 2;
+      const canvasToPdfScale = usableWidth / canvas.width;
+      const pageHeightInCanvasPixels = usableHeight / canvasToPdfScale;
+      const cardBounds = getPdfCardBounds(reportElement, canvas);
+      const pageSlices = getPdfPageSlices(canvas.height, pageHeightInCanvasPixels, cardBounds);
 
-      const reportName = reportTab === "line" ? `line_${selectedLine}` : reportTab === "full" ? "daily_report" : reportTab;
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, margin, usableWidth, imageHeight);
-      pdf.save(`${reportName}_${sanitizeFilename(date)}_shift_${shift}.pdf`);
+      const weekDates = reportTab === "weekly" ? getWeekDateValues(date) : [];
+      const reportName = reportTab === "line" ? `line_${selectedLine}` : reportTab === "full" ? "daily_report" : reportTab === "weekly" ? "weekly_report" : reportTab;
+      const reportDateName = reportTab === "weekly" ? `${weekDates[0]}_to_${weekDates[6]}` : date;
+      pageSlices.forEach((slice, index) => {
+        if (index > 0) pdf.addPage();
+        const sliceCanvas = createPdfSliceCanvas(canvas, slice, backgroundColor);
+        const sliceHeight = sliceCanvas.height * canvasToPdfScale;
+        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", PDF_MARGIN, PDF_MARGIN, usableWidth, sliceHeight);
+      });
+      pdf.save(`${reportName}_${sanitizeFilename(reportDateName)}_shift_${shift}.pdf`);
     } catch (error) {
       console.error(error);
       window.alert("Could not create the PDF.");
