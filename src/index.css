@@ -15,3 +15,65 @@ body {
 #root {
   min-height: 100svh;
 }
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--wn-button-primary-border, #d0a661) !important;
+  box-shadow: 0 0 0 3px var(--wn-focus-glow, transparent), var(--wn-input-shadow, none) !important;
+}
+
+button,
+select {
+  transition: transform 140ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+button:active,
+select:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.batch-theme-tag {
+  display: none;
+}
+
+[data-theme="pink"] .batch-card {
+  position: relative;
+}
+
+[data-theme="pink"] .batch-theme-tag {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--wn-batch-tag-bg, #fbcfe8);
+  color: var(--wn-batch-tag-text, #9d174d);
+  font-family: var(--wn-font, Inter, ui-sans-serif, system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 6px 14px rgba(236, 72, 153, 0.12);
+}
+
+[data-theme="pink"] .batch-card-0 {
+  --wn-batch-tag-bg: #fbcfe8;
+  --wn-batch-tag-text: #9d174d;
+}
+
+[data-theme="pink"] .batch-card-1 {
+  --wn-batch-tag-bg: #fde68a;
+  --wn-batch-tag-text: #854d0e;
+}
+
+[data-theme="pink"] .batch-card-2 {
+  --wn-batch-tag-bg: #bfdbfe;
+  --wn-batch-tag-text: #1e3a8a;
+}
+
+[data-theme="pink"] .batch-card-3 {
+  --wn-batch-tag-bg: #bbf7d0;
+  --wn-batch-tag-text: #166534;
+}

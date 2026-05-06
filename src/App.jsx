@@ -1,15 +1,72 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock, Home, Menu, Minus, Pencil, Plus, Settings, X } from "lucide-react";
+import { Clock, Home, Menu, Minus, Pencil, Plus, Settings, Sparkles, X } from "lucide-react";
 
 const LINE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 25, 26, 27, 28, 29, 30, 31];
 const SHIFT_OPTIONS = ["A", "B", "C"];
 const REPORT_TABS = ["schedule", "materials", "troubleshoot", "full", "weekly"];
-const SCREENS = ["lines", "entry", "report"];
+const FIVE_S_STEPS = [
+  {
+    title: "Sort",
+    description: "Remove items that are not needed.",
+    descriptionParts: [{ text: "Remove", highlight: true }, { text: " items that are not needed." }],
+    listTitle: "Questions:",
+    items: ["Do we use this?", "How often?", "Does it belong here?"],
+    goal: "The goal is to eliminate clutter and free up space.",
+  },
+  {
+    title: "Set in Order",
+    description: "Organize everything so it has a specific place.",
+    descriptionParts: [{ text: "Organize", highlight: true }, { text: " everything so it has a specific place." }],
+    listTitle: "People should be able to:",
+    items: ["find tools quickly", "return items easily", "immediately notice when something is missing"],
+    goal: "The goal is to reduce wasted time and frustration.",
+  },
+  {
+    title: "Shine",
+    description: "Cleaned and inspected regularly.",
+    descriptionParts: [{ text: "Cleaned", highlight: true }, { text: " and inspected regularly." }],
+    listTitle: "Cleaning is also a way to notice:",
+    items: ["damage", "wear", "leaks", "safety issues", "equipment problems"],
+    goal: "The goal is to prevent issues before they become larger problems.",
+  },
+  {
+    title: "Standardize",
+    description: "Consistent methods and expectations.",
+    descriptionParts: [
+      { text: "Consistent", highlight: true },
+      { text: " methods and " },
+      { text: "expectations", highlight: true },
+      { text: "." },
+    ],
+    listTitle: "Examples:",
+    items: ["standard layouts", "checklists", "labels", "procedures", "routines"],
+    goal: "The goal is consistency so work is done the same way regardless of who performs it.",
+  },
+  {
+    title: "Sustain",
+    description: "Maintain the system over time.",
+    descriptionParts: [{ text: "Maintain", highlight: true }, { text: " the system over time." }],
+    listTitle: "This step focuses on:",
+    items: ["habits", "accountability", "training", "regular review"],
+    goal: "Without sustain, organization slowly breaks down and old habits return.\n\nThe goal is long-term discipline and consistency.",
+  },
+];
+const FIVE_S_IMPROVEMENTS = ["efficiency", "cleanliness", "consistency", "safety", "workflow"];
+const FIVE_S_REDUCES = ["wasted motion", "lost items", "clutter", "downtime", "confusion", "inconsistent work", "preventable mistakes"];
+const FIVE_S_SYSTEM_GOALS = ["people can work more efficiently", "problems are easier to spot", "workflows are easier to maintain", "standards are clear"];
 const ACTIVE_DATE_STORAGE_KEY = "work-notes-active-date";
 const ACTIVE_SHIFT_STORAGE_KEY = "work-notes-active-shift";
 const LINE_VISIBILITY_STORAGE_KEY = "work-notes-line-visibility";
 const UI_COLLAPSE_STORAGE_KEY = "work-notes-ui-collapse";
 const DIE_SETTINGS_STORAGE_KEY = "work-notes-die-settings";
+const FIVE_S_NOTES_STORAGE_PREFIX = "work-notes-five-s";
+const THEME_STORAGE_KEY = "work-notes-theme";
+const THEME_DEFAULT = "default";
+const THEME_PINK = "pink";
+const THEME_OPTIONS = [
+  [THEME_DEFAULT, "Default"],
+  [THEME_PINK, "Pink"],
+];
 const PDF_MARGIN = 24;
 const PDF_CANVAS_SCALE = 3;
 const PDF_CARD_SPLIT_BLANK_THRESHOLD = 0.2;
@@ -68,6 +125,13 @@ const TEMPERATURE_FIELDS = [
   ["die", "Die"],
 ];
 
+const AUX_TEMPERATURE_FIELDS = [
+  ["temperatureN", "N"],
+  ["temperatureS", "S"],
+  ["temperatureT", "T"],
+  ["temperatureB", "B"],
+];
+
 const DIE_NUMBER_FIELD = ["dieNumber", "Die #"];
 
 const PROCESS_SETTING_FIELDS = [
@@ -88,6 +152,7 @@ const PRODUCTION_SETTING_FIELDS = [
 const DIE_SETTING_FIELDS = [
   DIE_NUMBER_FIELD,
   ...TEMPERATURE_FIELDS,
+  ...AUX_TEMPERATURE_FIELDS,
   ...PROCESS_SETTING_FIELDS,
   ...PRODUCTION_SETTING_FIELDS,
 ];
@@ -103,6 +168,7 @@ const LINE_RATE_FIELDS = [
 const ALL_SETTING_FIELDS = [
   DIE_NUMBER_FIELD,
   ...TEMPERATURE_FIELDS,
+  ...AUX_TEMPERATURE_FIELDS,
   ["cooling", "Cooling"],
   ["vacuum", "Vacuum"],
   ["puller", "Puller"],
@@ -117,15 +183,114 @@ const darkPanel = "linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,
 const darkButton = "linear-gradient(180deg, #29343a 0%, #151d21 100%)";
 const insetShadow = "inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55)";
 const appFont = "Georgia, 'Times New Roman', serif";
+const titleGold = "#e2bd73";
+const defaultThemeVariables = {
+  "--wn-page-bg": "#0a0f12",
+  "--wn-page-bg-image": "linear-gradient(90deg, #050708 0%, #101b21 50%, #050708 100%), repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 10px, transparent 10px 22px)",
+  "--wn-app-bg": "#111a1f",
+  "--wn-app-bg-image": "linear-gradient(180deg, rgba(234,196,116,.08), transparent 120px), linear-gradient(135deg, rgba(255,255,255,.025) 0 25%, transparent 25% 50%, rgba(0,0,0,.12) 50% 75%, transparent 75% 100%)",
+  "--wn-app-border": "#2b241b",
+  "--wn-app-shadow": "0 0 0 1px #050708, 0 22px 80px rgba(0,0,0,.52)",
+  "--wn-text": "#f1dfb6",
+  "--wn-muted": "#b5a88a",
+  "--wn-title": titleGold,
+  "--wn-title-shadow": "0 1px 0 #000",
+  "--wn-font": appFont,
+  "--wn-card-bg": darkPanel,
+  "--wn-card-border": "#6c5230",
+  "--wn-card-radius": "8px",
+  "--wn-card-shadow": `${insetShadow}, 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28)`,
+  "--wn-button-bg": darkButton,
+  "--wn-button-text": "#f3dfad",
+  "--wn-button-border": "#8d6b3c",
+  "--wn-button-radius": "8px",
+  "--wn-button-shadow": `${insetShadow}, 0 2px 0 #050708`,
+  "--wn-button-primary-shadow": "inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(0,0,0,.62), 0 0 0 1px rgba(4,7,8,.7)",
+  "--wn-button-primary-bg": "linear-gradient(180deg, #1d5a4f 0%, #123134 100%)",
+  "--wn-button-primary-text": "#ffe9b4",
+  "--wn-button-primary-border": "#d0a661",
+  "--wn-input-bg": "#0d1417",
+  "--wn-input-text": "#f8e9c4",
+  "--wn-input-border": "#5f4a2c",
+  "--wn-input-radius": "7px",
+  "--wn-input-shadow": "inset 0 1px 3px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04)",
+  "--wn-focus-glow": "transparent",
+  "--wn-color-scheme": "dark",
+  "--wn-label": "#d7c497",
+  "--wn-side-bg": "#0f171b",
+  "--wn-side-bg-image": "linear-gradient(180deg, rgba(212,166,92,.08), transparent 160px), linear-gradient(90deg, rgba(255,255,255,.035), transparent 38%)",
+  "--wn-side-border": "#8d6b3c",
+  "--wn-side-button-bg": "linear-gradient(180deg, rgba(44,57,63,.9), rgba(17,25,29,.95))",
+  "--wn-side-button-active-bg": "linear-gradient(180deg, #1d4c49, #122c2f)",
+  "--wn-side-button-active-text": "#ffe7ae",
+  "--wn-subcard-bg": "rgba(7,12,14,.34)",
+  "--wn-success": "#80d68a",
+  "--wn-report-bg": "#10181c",
+  "--wn-topbar-bg": darkPanel,
+  "--wn-topbar-shadow": `${insetShadow}, 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28)`,
+  "--wn-line-toggle-bg": "linear-gradient(180deg, rgba(35,43,47,.72), rgba(13,18,20,.82))",
+  "--wn-line-toggle-text": "#a39370",
+  "--wn-line-toggle-border": "#4f3d25",
+};
+const pinkThemeVariables = {
+  ...defaultThemeVariables,
+  "--wn-page-bg": "#fff1f5",
+  "--wn-page-bg-image": "linear-gradient(180deg, rgba(249,168,212,.48), rgba(255,241,245,.75) 190px, #fff1f5 420px)",
+  "--wn-app-bg": "#fff7fb",
+  "--wn-app-bg-image": "linear-gradient(135deg, rgba(236,72,153,.18), rgba(249,168,212,.18) 42%, rgba(255,255,255,.9))",
+  "--wn-app-border": "#fbcfe8",
+  "--wn-app-shadow": "0 20px 55px rgba(236,72,153,.13)",
+  "--wn-text": "#374151",
+  "--wn-muted": "#6b7280",
+  "--wn-title": "#ec4899",
+  "--wn-title-shadow": "none",
+  "--wn-font": "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  "--wn-card-bg": "#ffffff",
+  "--wn-card-border": "#fbcfe8",
+  "--wn-card-radius": "22px",
+  "--wn-card-shadow": "0 16px 34px rgba(236,72,153,.15)",
+  "--wn-button-bg": "linear-gradient(180deg, #ffffff 0%, #fff5fa 100%)",
+  "--wn-button-text": "#ec4899",
+  "--wn-button-border": "#f9a8d4",
+  "--wn-button-radius": "999px",
+  "--wn-button-shadow": "0 9px 18px rgba(236,72,153,.12)",
+  "--wn-button-primary-shadow": "0 10px 20px rgba(236,72,153,.22)",
+  "--wn-button-primary-bg": "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
+  "--wn-button-primary-text": "#ffffff",
+  "--wn-button-primary-border": "#ec4899",
+  "--wn-input-bg": "#ffffff",
+  "--wn-input-text": "#374151",
+  "--wn-input-border": "#fbcfe8",
+  "--wn-input-radius": "18px",
+  "--wn-input-shadow": "0 3px 12px rgba(236,72,153,.07)",
+  "--wn-focus-glow": "rgba(236,72,153,.18)",
+  "--wn-color-scheme": "light",
+  "--wn-label": "#9d174d",
+  "--wn-side-bg": "#ffffff",
+  "--wn-side-bg-image": "linear-gradient(180deg, rgba(249,168,212,.26), transparent 190px)",
+  "--wn-side-border": "#f9a8d4",
+  "--wn-side-button-bg": "linear-gradient(180deg, #ffffff 0%, #fff5fa 100%)",
+  "--wn-side-button-active-bg": "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
+  "--wn-side-button-active-text": "#ffffff",
+  "--wn-subcard-bg": "#fff7fb",
+  "--wn-success": "#ec4899",
+  "--wn-report-bg": "#fff7fb",
+  "--wn-topbar-bg": "linear-gradient(135deg, #ffffff 0%, #ffe4f0 48%, #fbcfe8 100%)",
+  "--wn-topbar-shadow": "0 14px 28px rgba(236,72,153,.15)",
+  "--wn-line-toggle-bg": "linear-gradient(180deg, #fff5fa, #ffe4f0)",
+  "--wn-line-toggle-text": "#9d174d",
+  "--wn-line-toggle-border": "#fbcfe8",
+};
+const getThemeVariables = (theme) => (theme === THEME_PINK ? pinkThemeVariables : defaultThemeVariables);
 
 const styles = {
   page: {
     minHeight: "100svh",
-    background: "#0a0f12",
+    background: "var(--wn-page-bg, #0a0f12)",
     backgroundImage:
-      "linear-gradient(90deg, #050708 0%, #101b21 50%, #050708 100%), repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 10px, transparent 10px 22px)",
-    color: "#f1dfb6",
-    fontFamily: appFont,
+      "var(--wn-page-bg-image, linear-gradient(90deg, #050708 0%, #101b21 50%, #050708 100%), repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 10px, transparent 10px 22px))",
+    color: "var(--wn-text, #f1dfb6)",
+    fontFamily: "var(--wn-font, Georgia, 'Times New Roman', serif)",
     boxSizing: "border-box",
   },
   appFrame: {
@@ -135,21 +300,22 @@ const styles = {
     margin: "0 auto",
     position: "relative",
     overflow: "visible",
-    background: "#111a1f",
+    background: "var(--wn-app-bg, #111a1f)",
     backgroundImage:
-      "linear-gradient(180deg, rgba(234,196,116,.08), transparent 120px), linear-gradient(135deg, rgba(255,255,255,.025) 0 25%, transparent 25% 50%, rgba(0,0,0,.12) 50% 75%, transparent 75% 100%)",
+      "var(--wn-app-bg-image, linear-gradient(180deg, rgba(234,196,116,.08), transparent 120px), linear-gradient(135deg, rgba(255,255,255,.025) 0 25%, transparent 25% 50%, rgba(0,0,0,.12) 50% 75%, transparent 75% 100%))",
     backgroundSize: "auto, 18px 18px",
-    borderLeft: "1px solid #2b241b",
-    borderRight: "1px solid #2b241b",
-    boxShadow: "0 0 0 1px #050708, 0 22px 80px rgba(0,0,0,.52)",
+    borderLeft: "1px solid var(--wn-app-border, #2b241b)",
+    borderRight: "1px solid var(--wn-app-border, #2b241b)",
+    boxShadow: "var(--wn-app-shadow, 0 0 0 1px #050708, 0 22px 80px rgba(0,0,0,.52))",
   },
   homeHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 },
+  screenTitle: { fontWeight: 800, fontSize: 18, textAlign: "center", color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
   menuButton: {
     minHeight: 42,
-    border: "1px solid #8d6b3c",
-    background: darkButton,
-    color: "#f6e4b7",
-    borderRadius: 8,
+    border: "1px solid var(--wn-button-border, #8d6b3c)",
+    background: "var(--wn-button-bg, linear-gradient(180deg, #29343a 0%, #151d21 100%))",
+    color: "var(--wn-button-text, #f6e4b7)",
+    borderRadius: "var(--wn-button-radius, 8px)",
     padding: "8px 10px",
     fontSize: 13,
     fontWeight: 800,
@@ -158,21 +324,23 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    boxShadow: `${insetShadow}, 0 2px 0 #050708`,
+    boxShadow: "var(--wn-button-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708)",
+    transition: "transform .14s ease, box-shadow .16s ease, background .16s ease",
   },
   editIconButton: {
     width: 42,
     minHeight: 42,
-    border: "1px solid #8d6b3c",
-    background: darkButton,
-    color: "#f6e4b7",
-    borderRadius: 8,
+    border: "1px solid var(--wn-button-border, #8d6b3c)",
+    background: "var(--wn-button-bg, linear-gradient(180deg, #29343a 0%, #151d21 100%))",
+    color: "var(--wn-button-text, #f6e4b7)",
+    borderRadius: "var(--wn-button-radius, 8px)",
     padding: 0,
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: `${insetShadow}, 0 2px 0 #050708`,
+    boxShadow: "var(--wn-button-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708)",
+    transition: "transform .14s ease, box-shadow .16s ease, background .16s ease",
   },
   menuScrim: { position: "absolute", top: 62, right: 0, bottom: 0, left: 0, zIndex: 30, border: 0, padding: 0, background: "rgba(0, 0, 0, .48)", cursor: "pointer" },
   sidePanel: {
@@ -182,25 +350,25 @@ const styles = {
     left: 0,
     width: 210,
     zIndex: 35,
-    background: "#0f171b",
-    backgroundImage: "linear-gradient(180deg, rgba(212,166,92,.08), transparent 160px), linear-gradient(90deg, rgba(255,255,255,.035), transparent 38%)",
-    color: "#f4e5bd",
+    background: "var(--wn-side-bg, #0f171b)",
+    backgroundImage: "var(--wn-side-bg-image, linear-gradient(180deg, rgba(212,166,92,.08), transparent 160px), linear-gradient(90deg, rgba(255,255,255,.035), transparent 38%))",
+    color: "var(--wn-text, #f4e5bd)",
     padding: 10,
     boxSizing: "border-box",
     display: "flex",
     flexDirection: "column",
     gap: 8,
-    borderRight: "1px solid #8d6b3c",
-    boxShadow: "10px 0 28px rgba(0,0,0,.42), inset -1px 0 0 rgba(255,255,255,.08)",
+    borderRight: "1px solid var(--wn-side-border, #8d6b3c)",
+    boxShadow: "var(--wn-card-shadow, 10px 0 28px rgba(0,0,0,.42), inset -1px 0 0 rgba(255,255,255,.08))",
   },
-  sideSection: { display: "grid", gap: 8, paddingBottom: 8, marginBottom: 2, borderBottom: "1px solid rgba(202,165,107,.34)" },
+  sideSection: { display: "grid", gap: 8, paddingBottom: 8, marginBottom: 2, borderBottom: "1px solid var(--wn-card-border, rgba(202,165,107,.34))" },
   sideButton: {
     width: "100%",
     minHeight: 48,
-    border: "1px solid #5f4a2c",
-    background: "linear-gradient(180deg, rgba(44,57,63,.9), rgba(17,25,29,.95))",
-    color: "#f4e5bd",
-    borderRadius: 8,
+    border: "1px solid var(--wn-button-border, #5f4a2c)",
+    background: "var(--wn-side-button-bg, linear-gradient(180deg, rgba(44,57,63,.9), rgba(17,25,29,.95)))",
+    color: "var(--wn-text, #f4e5bd)",
+    borderRadius: "var(--wn-button-radius, 8px)",
     padding: "8px 10px",
     fontSize: 13,
     fontWeight: 800,
@@ -209,10 +377,11 @@ const styles = {
     alignItems: "center",
     justifyContent: "flex-start",
     gap: 8,
-    boxShadow: insetShadow,
+    boxShadow: "var(--wn-button-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55))",
+    transition: "transform .14s ease, box-shadow .16s ease, background .16s ease",
   },
-  sideButtonActive: { background: "linear-gradient(180deg, #1d4c49, #122c2f)", color: "#ffe7ae", borderColor: "#d0a661" },
-  sideFooter: { marginTop: "auto", paddingTop: 10, borderTop: "1px solid rgba(202,165,107,.34)" },
+  sideButtonActive: { background: "var(--wn-side-button-active-bg, linear-gradient(180deg, #1d4c49, #122c2f))", color: "var(--wn-side-button-active-text, #ffe7ae)", borderColor: "var(--wn-button-primary-border, #d0a661)" },
+  sideFooter: { marginTop: "auto", paddingTop: 10, borderTop: "1px solid var(--wn-card-border, rgba(202,165,107,.34))" },
   reportScrim: { position: "absolute", top: 62, right: 0, bottom: 0, left: 0, zIndex: 40, border: 0, padding: 0, background: "rgba(0,0,0,.5)", cursor: "pointer" },
   secondaryPanel: {
     position: "absolute",
@@ -221,10 +390,10 @@ const styles = {
     left: 0,
     width: 210,
     zIndex: 45,
-    background: "#11191d",
-    color: "#f4e5bd",
-    borderRight: "1px solid #8d6b3c",
-    boxShadow: "10px 0 28px rgba(0,0,0,.42), inset -1px 0 0 rgba(255,255,255,.08)",
+    background: "var(--wn-side-bg, #11191d)",
+    color: "var(--wn-text, #f4e5bd)",
+    borderRight: "1px solid var(--wn-side-border, #8d6b3c)",
+    boxShadow: "var(--wn-card-shadow, 10px 0 28px rgba(0,0,0,.42), inset -1px 0 0 rgba(255,255,255,.08))",
     padding: 10,
     boxSizing: "border-box",
     display: "flex",
@@ -232,71 +401,75 @@ const styles = {
     gap: 8,
   },
   secondaryHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 },
-  secondaryTitle: { fontSize: 15, fontWeight: 900, color: "#e2bd73", textShadow: "0 1px 0 #000" },
+  secondaryTitle: { fontSize: 15, fontWeight: 900, color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
   closeButton: {
     width: 36,
     height: 36,
-    border: "1px solid #7b6038",
-    borderRadius: 8,
-    background: darkButton,
-    color: "#f6e4b7",
+    border: "1px solid var(--wn-button-border, #7b6038)",
+    borderRadius: "var(--wn-button-radius, 8px)",
+    background: "var(--wn-button-bg, linear-gradient(180deg, #29343a 0%, #151d21 100%))",
+    color: "var(--wn-button-text, #f6e4b7)",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
-    boxShadow: insetShadow,
+    boxShadow: "var(--wn-button-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55))",
+  },
+  topBarCard: {
+    background: "var(--wn-topbar-bg, var(--wn-card-bg, linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,0) 28%), linear-gradient(180deg, #1a2528 0%, #10181c 100%)))",
+    boxShadow: "var(--wn-topbar-shadow, var(--wn-card-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28)))",
   },
   container: { width: "100%", minWidth: 0, padding: 10, boxSizing: "border-box" },
   card: {
-    background: darkPanel,
-    border: "1px solid #6c5230",
-    borderRadius: 8,
-    color: "#f1dfb6",
-    boxShadow: `${insetShadow}, 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28)`,
+    background: "var(--wn-card-bg, linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,0) 28%), linear-gradient(180deg, #1a2528 0%, #10181c 100%))",
+    border: "1px solid var(--wn-card-border, #6c5230)",
+    borderRadius: "var(--wn-card-radius, 8px)",
+    color: "var(--wn-text, #f1dfb6)",
+    boxShadow: "var(--wn-card-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28))",
   },
   reportCard: {
-    background: darkPanel,
-    border: "1px solid #6c5230",
-    borderRadius: 8,
-    color: "#f1dfb6",
-    boxShadow: `${insetShadow}, 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28)`,
-    fontFamily: appFont,
+    background: "var(--wn-card-bg, linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,0) 28%), linear-gradient(180deg, #1a2528 0%, #10181c 100%))",
+    border: "1px solid var(--wn-card-border, #6c5230)",
+    borderRadius: "var(--wn-card-radius, 8px)",
+    color: "var(--wn-text, #f1dfb6)",
+    boxShadow: "var(--wn-card-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708, 0 10px 24px rgba(0,0,0,.28))",
+    fontFamily: "var(--wn-font, Georgia, 'Times New Roman', serif)",
   },
   printableReportCard: { background: "#fff", border: "1px solid #000", borderRadius: 0, color: "#000", boxShadow: "none", fontFamily: "Arial, sans-serif" },
   cardBody: { padding: 12 },
-  label: { display: "block", fontSize: 14, fontWeight: 700, marginBottom: 6, color: "#d7c497" },
+  label: { display: "block", fontSize: 14, fontWeight: 700, marginBottom: 6, color: "var(--wn-label, #d7c497)" },
   input: {
     width: "100%",
-    color: "#f8e9c4",
+    color: "var(--wn-input-text, #f8e9c4)",
     boxSizing: "border-box",
     padding: "10px 12px",
-    border: "1px solid #5f4a2c",
-    borderRadius: 7,
+    border: "1px solid var(--wn-input-border, #5f4a2c)",
+    borderRadius: "var(--wn-input-radius, 7px)",
     fontSize: 14,
-    background: "#0d1417",
+    background: "var(--wn-input-bg, #0d1417)",
     outline: 0,
-    colorScheme: "dark",
-    boxShadow: "inset 0 1px 3px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04)",
+    colorScheme: "var(--wn-color-scheme, dark)",
+    boxShadow: "var(--wn-input-shadow, inset 0 1px 3px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04))",
   },
   textarea: {
     width: "100%",
-    color: "#f8e9c4",
+    color: "var(--wn-input-text, #f8e9c4)",
     boxSizing: "border-box",
     padding: "10px 12px",
-    border: "1px solid #5f4a2c",
-    borderRadius: 7,
+    border: "1px solid var(--wn-input-border, #5f4a2c)",
+    borderRadius: "var(--wn-input-radius, 7px)",
     fontSize: 14,
     minHeight: 74,
     resize: "vertical",
-    background: "#0d1417",
+    background: "var(--wn-input-bg, #0d1417)",
     outline: 0,
-    boxShadow: "inset 0 1px 3px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04)",
+    boxShadow: "var(--wn-input-shadow, inset 0 1px 3px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04))",
   },
   button: {
-    border: "1px solid #8d6b3c",
-    background: darkButton,
-    color: "#f3dfad",
-    borderRadius: 8,
+    border: "1px solid var(--wn-button-border, #8d6b3c)",
+    background: "var(--wn-button-bg, linear-gradient(180deg, #29343a 0%, #151d21 100%))",
+    color: "var(--wn-button-text, #f3dfad)",
+    borderRadius: "var(--wn-button-radius, 8px)",
     padding: "10px 12px",
     fontSize: 14,
     fontWeight: 800,
@@ -306,28 +479,29 @@ const styles = {
     justifyContent: "center",
     gap: 6,
     minHeight: 42,
-    boxShadow: `${insetShadow}, 0 2px 0 #050708`,
+    boxShadow: "var(--wn-button-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708)",
+    transition: "transform .14s ease, box-shadow .16s ease, background .16s ease",
   },
   smallButton: { padding: "7px 9px", fontSize: 12, minHeight: 36 },
   buttonPrimary: {
-    background: "linear-gradient(180deg, #1d5a4f 0%, #123134 100%)",
-    color: "#ffe9b4",
-    border: "1px solid #d0a661",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(0,0,0,.62), 0 0 0 1px rgba(4,7,8,.7)",
+    background: "var(--wn-button-primary-bg, linear-gradient(180deg, #1d5a4f 0%, #123134 100%))",
+    color: "var(--wn-button-primary-text, #ffe9b4)",
+    border: "1px solid var(--wn-button-primary-border, #d0a661)",
+    boxShadow: "var(--wn-button-primary-shadow, inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(0,0,0,.62), 0 0 0 1px rgba(4,7,8,.7))",
   },
-  reportButton: { border: "1px solid #8d6b3c", background: darkButton, color: "#f3dfad", borderRadius: 8, boxShadow: `${insetShadow}, 0 2px 0 #050708`, fontFamily: appFont, fontWeight: 800 },
+  reportButton: { border: "1px solid var(--wn-button-border, #8d6b3c)", background: "var(--wn-button-bg, linear-gradient(180deg, #29343a 0%, #151d21 100%))", color: "var(--wn-button-text, #f3dfad)", borderRadius: "var(--wn-button-radius, 8px)", boxShadow: "var(--wn-button-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708)", fontFamily: "var(--wn-font, Georgia, 'Times New Roman', serif)", fontWeight: 800 },
   printableReportButton: { border: "1px solid #000", background: "#fff", color: "#000", borderRadius: 3, boxShadow: "none", fontFamily: "Arial, sans-serif", fontWeight: 700 },
   printableReportButtonActive: { border: "1px solid #000", background: "#000", color: "#fff", borderRadius: 3, boxShadow: "none", fontFamily: "Arial, sans-serif", fontWeight: 700 },
-  tabGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10, position: "sticky", top: 0, zIndex: 20, background: "#11191d", paddingBottom: 8, borderBottom: "1px solid #6c5230" },
+  tabGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10, position: "sticky", top: 0, zIndex: 20, background: "var(--wn-app-bg, #11191d)", paddingBottom: 8, borderBottom: "1px solid var(--wn-card-border, #6c5230)" },
   tabButton: { padding: "7px 3px", fontSize: 11, minHeight: 38 },
   lineGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 },
   panelLineGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5, marginTop: 4 },
   lineColumn: { display: "flex", flexDirection: "column", gap: 6 },
-  lineGroupTitle: { fontWeight: 900, textAlign: "left", fontSize: 14, marginBottom: 2, color: "#e2bd73", textShadow: "0 1px 0 #000" },
+  lineGroupTitle: { fontWeight: 900, textAlign: "left", fontSize: 14, marginBottom: 2, color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
   lineGroupButton: { width: "100%", minHeight: 34, padding: "6px 7px", fontSize: 13, justifyContent: "flex-start" },
-  panelLineGroupTitle: { fontWeight: 900, textAlign: "left", fontSize: 10, marginBottom: 2, color: "#caa56b" },
+  panelLineGroupTitle: { fontWeight: 900, textAlign: "left", fontSize: 10, marginBottom: 2, color: "var(--wn-title, #caa56b)" },
   lineButton: { minHeight: 48, fontSize: 18 },
-  lineToggleOff: { opacity: 0.45, borderColor: "#4f3d25", color: "#a39370", background: "linear-gradient(180deg, rgba(35,43,47,.72), rgba(13,18,20,.82))" },
+  lineToggleOff: { opacity: 0.45, borderColor: "var(--wn-line-toggle-border, #4f3d25)", color: "var(--wn-line-toggle-text, #a39370)", background: "var(--wn-line-toggle-bg, linear-gradient(180deg, rgba(35,43,47,.72), rgba(13,18,20,.82)))" },
   panelLineButton: { minHeight: 36, padding: "5px 3px", fontSize: 13, borderRadius: 8 },
   shiftGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
   twoColumnGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
@@ -336,37 +510,37 @@ const styles = {
   settingsGridFour: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 },
   settingsGridThree: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 },
   otherTimeGrid: { display: "grid", gridTemplateColumns: "80px minmax(0, 1fr) auto", gap: 6, alignItems: "end" },
-  temperatureLabel: { display: "block", fontSize: 11, fontWeight: 800, marginBottom: 4, color: "#d7c497" },
+  temperatureLabel: { display: "block", fontSize: 11, fontWeight: 800, marginBottom: 4, color: "var(--wn-label, #d7c497)" },
   temperatureInput: {
     width: "100%",
-    color: "#f8e9c4",
+    color: "var(--wn-input-text, #f8e9c4)",
     boxSizing: "border-box",
     padding: "7px 5px",
-    border: "1px solid #5f4a2c",
-    borderRadius: 6,
+    border: "1px solid var(--wn-input-border, #5f4a2c)",
+    borderRadius: "var(--wn-input-radius, 6px)",
     fontSize: 13,
-    background: "#0d1417",
+    background: "var(--wn-input-bg, #0d1417)",
     outline: 0,
-    colorScheme: "dark",
-    boxShadow: "inset 0 1px 3px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04)",
+    colorScheme: "var(--wn-color-scheme, dark)",
+    boxShadow: "var(--wn-input-shadow, inset 0 1px 3px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04))",
   },
-  calculatedSetting: { marginTop: 8, border: "1px solid #6c5230", borderRadius: 7, padding: "8px 10px", background: "rgba(8,12,14,.72)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.05)" },
-  calculatedValue: { fontSize: 18, fontWeight: 900, marginTop: 2, color: "#80d68a" },
+  calculatedSetting: { marginTop: 8, border: "1px solid var(--wn-card-border, #6c5230)", borderRadius: "var(--wn-input-radius, 7px)", padding: "8px 10px", background: "var(--wn-subcard-bg, rgba(8,12,14,.72))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.05)" },
+  calculatedValue: { fontSize: 18, fontWeight: 900, marginTop: 2, color: "var(--wn-success, #80d68a)" },
   batchRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "end" },
   noteGrid: { display: "grid", gridTemplateColumns: "1fr", gap: 10 },
-  subCard: { border: "1px solid #5f4a2c", borderRadius: 8, padding: 10, background: "rgba(7,12,14,.34)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
-  coexInset: { borderLeft: "3px solid #8d6b3c", paddingLeft: 8, marginTop: 10 },
-  reportShell: { width: "100%", overflowX: "hidden", background: "#10181c", color: "#f1dfb6", fontFamily: appFont },
-  reportHeader: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid #8d6b3c", color: "#e2bd73", textShadow: "0 1px 0 #000" },
-  reportBlock: { border: "1px solid #6c5230", borderRadius: 8, padding: 6, marginBottom: 8, background: "rgba(7,12,14,.34)", color: "#f1dfb6", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
-  reportHeadRow: { fontSize: 10, fontWeight: 800, borderBottom: "1px solid rgba(202,165,107,.5)", paddingBottom: 3, marginBottom: 5, lineHeight: "12px", color: "#e2bd73" },
-  reportRow: { fontSize: 10, lineHeight: "12px", alignItems: "start", wordBreak: "break-word", whiteSpace: "pre-line", color: "#f1dfb6" },
+  subCard: { border: "1px solid var(--wn-input-border, #5f4a2c)", borderRadius: "var(--wn-card-radius, 8px)", padding: 10, background: "var(--wn-subcard-bg, rgba(7,12,14,.34))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
+  coexInset: { borderLeft: "3px solid var(--wn-button-border, #8d6b3c)", paddingLeft: 8, marginTop: 10 },
+  reportShell: { width: "100%", overflowX: "hidden", background: "var(--wn-report-bg, #10181c)", color: "var(--wn-text, #f1dfb6)", fontFamily: "var(--wn-font, Georgia, 'Times New Roman', serif)" },
+  reportHeader: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid var(--wn-button-border, #8d6b3c)", color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
+  reportBlock: { border: "1px solid var(--wn-card-border, #6c5230)", borderRadius: "var(--wn-card-radius, 8px)", padding: 6, marginBottom: 8, background: "var(--wn-subcard-bg, rgba(7,12,14,.34))", color: "var(--wn-text, #f1dfb6)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
+  reportHeadRow: { fontSize: 10, fontWeight: 800, borderBottom: "1px solid var(--wn-card-border, rgba(202,165,107,.5))", paddingBottom: 3, marginBottom: 5, lineHeight: "12px", color: "var(--wn-title, #e2bd73)" },
+  reportRow: { fontSize: 10, lineHeight: "12px", alignItems: "start", wordBreak: "break-word", whiteSpace: "pre-line", color: "var(--wn-text, #f1dfb6)" },
   printableReportShell: { width: "100%", overflowX: "hidden", background: "#fff", color: "#000", fontFamily: "Arial, sans-serif" },
   printableReportHeader: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid #000", color: "#000", textShadow: "none" },
   printableReportBlock: { border: "1px solid #000", borderRadius: 0, padding: 6, marginBottom: 8, background: "#fff", color: "#000", boxShadow: "none" },
   printableReportHeadRow: { fontSize: 10, fontWeight: 700, borderBottom: "1px solid #000", paddingBottom: 3, marginBottom: 5, lineHeight: "12px", color: "#000" },
   printableReportRow: { fontSize: 10, lineHeight: "12px", alignItems: "start", wordBreak: "break-word", whiteSpace: "pre-line", color: "#000" },
-  muted: { fontSize: 13, color: "#b5a88a" },
+  muted: { fontSize: 13, color: "var(--wn-muted, #b5a88a)" },
 };
 
 const getReportTheme = (printable) => ({
@@ -380,8 +554,8 @@ const getReportTheme = (printable) => ({
   activeButton: printable ? styles.printableReportButtonActive : styles.buttonPrimary,
   settingCell: printable
     ? { border: "1px solid #000", borderRadius: 0, padding: 5, minWidth: 0, background: "#fff", color: "#000" }
-    : { border: "1px solid #6c5230", borderRadius: 6, padding: 5, minWidth: 0, background: "rgba(8,12,14,.72)", color: "#f1dfb6", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
-  settingLabel: printable ? { fontSize: 9, fontWeight: 800, color: "#000", lineHeight: "11px" } : { fontSize: 9, fontWeight: 800, color: "#e2bd73", lineHeight: "11px" },
+    : { border: "1px solid var(--wn-card-border, #6c5230)", borderRadius: "var(--wn-input-radius, 6px)", padding: 5, minWidth: 0, background: "var(--wn-subcard-bg, rgba(8,12,14,.72))", color: "var(--wn-text, #f1dfb6)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
+  settingLabel: printable ? { fontSize: 9, fontWeight: 800, color: "#000", lineHeight: "11px" } : { fontSize: 9, fontWeight: 800, color: "var(--wn-title, #e2bd73)", lineHeight: "11px" },
 });
 
 const makeId = () => {
@@ -449,6 +623,84 @@ const getInitialShift = () => {
 };
 const savePreference = (key, value) => {
   if (typeof localStorage !== "undefined") localStorage.setItem(key, value);
+};
+const normalizeTheme = (theme) => (THEME_OPTIONS.some(([value]) => value === theme) ? theme : THEME_DEFAULT);
+const getInitialTheme = () => {
+  if (typeof localStorage === "undefined") return THEME_DEFAULT;
+  return normalizeTheme(localStorage.getItem(THEME_STORAGE_KEY));
+};
+
+const SORT_PRIMARY_CARD_ID = "sort-primary";
+const createFiveSCardEntry = () => ({ id: makeId(), goal: "", result: "", items: [], confirmed: false, deleted: false });
+const normalizeFiveSCardEntry = (entry) => {
+  const results = Array.isArray(entry?.results)
+    ? entry.results.map((result) => String(result || "").trim()).filter(Boolean)
+    : [];
+  const result = String(entry?.result || "").trim() || results.join("\n\n");
+  const items = Array.isArray(entry?.items)
+    ? entry.items.map((item) => String(item || ""))
+    : result
+      ? [result]
+      : [];
+
+  return {
+    id: entry?.id || makeId(),
+    goal: entry?.goal || "",
+    result,
+    items,
+    confirmed: Boolean(entry?.confirmed),
+    deleted: Boolean(entry?.deleted),
+  };
+};
+const createFiveSNoteEntry = () => ({ goal: "", result: "", items: [], confirmed: false, deleted: false, cards: [] });
+const normalizeFiveSNoteEntry = (entry) => {
+  if (typeof entry === "string") return { goal: entry, result: "", items: [], confirmed: false, deleted: false, cards: [] };
+
+  const results = Array.isArray(entry?.results)
+    ? entry.results.map((result) => String(result || "").trim()).filter(Boolean)
+    : [];
+  const result = String(entry?.result || "").trim() || results.join("\n\n");
+  const items = Array.isArray(entry?.items)
+    ? entry.items.map((item) => String(item || ""))
+    : result
+      ? [result]
+      : [];
+  const cards = Array.isArray(entry?.cards) ? entry.cards.map(normalizeFiveSCardEntry) : [];
+
+  return { goal: entry?.goal || "", result, items, confirmed: Boolean(entry?.confirmed), deleted: Boolean(entry?.deleted), cards };
+};
+const getFiveSSortCards = (entry) => {
+  const normalizedEntry = normalizeFiveSNoteEntry(entry);
+  if (normalizedEntry.cards.length) return normalizedEntry.cards;
+  if (normalizedEntry.deleted) return [];
+
+  return [{
+    id: SORT_PRIMARY_CARD_ID,
+    goal: normalizedEntry.goal,
+    result: normalizedEntry.result,
+    items: normalizedEntry.items,
+    confirmed: normalizedEntry.confirmed,
+    deleted: false,
+  }];
+};
+const createFiveSNotes = () => Object.fromEntries(FIVE_S_STEPS.map((_, index) => [String(index), createFiveSNoteEntry()]));
+const normalizeFiveSNotes = (notes) =>
+  Object.fromEntries(FIVE_S_STEPS.map((_, index) => {
+    const key = String(index);
+    return [key, normalizeFiveSNoteEntry(notes?.[key])];
+  }));
+const loadFiveSNotes = (workDate) => {
+  if (typeof localStorage === "undefined") return createFiveSNotes();
+
+  const saved = localStorage.getItem(`${FIVE_S_NOTES_STORAGE_PREFIX}-${workDate}`);
+  if (!saved) return createFiveSNotes();
+
+  try {
+    return normalizeFiveSNotes(JSON.parse(saved));
+  } catch (error) {
+    console.error("Could not load 5S notes:", error);
+    return createFiveSNotes();
+  }
 };
 
 const createLineVisibility = () => Object.fromEntries(LINE_NUMBERS.map((line) => [String(line), true]));
@@ -675,9 +927,16 @@ const tabLabel = (tab) => {
   if (tab === "full") return "Daily Report";
   if (tab === "weekly") return "Weekly Report";
   if (tab === "troubleshoot") return "Troubleshoot";
+  if (tab === "fiveS") return "5S Report";
   return tab[0].toUpperCase() + tab.slice(1);
 };
-const reportTitle = (reportTab, selectedLine) => (reportTab === "line" ? `Line ${selectedLine}` : tabLabel(reportTab));
+const fiveSGoalLabel = (index) => (index === 0 ? "Target Area" : "Goal");
+const fiveSResultLabel = (index) => (index === 0 ? "Items Removed" : "Result");
+const reportTitle = (reportTab, selectedLine, fiveSReportIndex) => {
+  if (reportTab === "line") return `Line ${selectedLine}`;
+  if (reportTab === "fiveS" && typeof fiveSReportIndex === "number") return FIVE_S_STEPS[fiveSReportIndex]?.title || "5S";
+  return tabLabel(reportTab);
+};
 const actionTypeLabel = (actionType) => ACTION_TYPE_OPTIONS.find(([value]) => value === actionType)?.[1] || "Other";
 
 const createCoex = (number = "02") => ({
@@ -1138,9 +1397,9 @@ function Button({ children, active = false, small = false, style, ...props }) {
   );
 }
 
-function Card({ children, style }) {
+function Card({ children, style, className }) {
   return (
-    <div style={{ ...styles.card, ...style }}>
+    <div className={className} style={{ ...styles.card, ...style }}>
       <div style={styles.cardBody}>{children}</div>
     </div>
   );
@@ -1299,14 +1558,23 @@ function CoexMixFields({ coex, onChange }) {
   );
 }
 
-function HomeHeader({ menuOpen, onMenuClick, isEditingLines, onEditClick }) {
+function HomeHeader({ menuOpen, onMenuClick, isEditingLines, onEditClick, onSettingsClick }) {
   return (
     <div style={styles.homeHeader}>
       <button type="button" style={styles.menuButton} onClick={onMenuClick}>
         {menuOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
         <span>Menu</span>
       </button>
-      {!menuOpen && (
+      {menuOpen ? (
+        <button
+          type="button"
+          aria-label="Settings"
+          style={styles.editIconButton}
+          onClick={onSettingsClick}
+        >
+          <Settings size={18} aria-hidden="true" />
+        </button>
+      ) : (
         <button
           type="button"
           aria-label={isEditingLines ? "Done editing lines" : "Edit lines"}
@@ -1320,16 +1588,21 @@ function HomeHeader({ menuOpen, onMenuClick, isEditingLines, onEditClick }) {
   );
 }
 
-function SidePanel({ screen, reportTab, date, shift, isDieNumberActive, onDateChange, onShiftChange, onSelectReport, onSelectDieNumber }) {
+function SidePanel({ screen, reportTab, date, theme, isDieNumberActive, isFiveSActive, onDateChange, onSelectReport, onSelectDieNumber, onSelectFiveS }) {
   return (
     <nav style={styles.sidePanel} aria-label="Main">
       {REPORT_TABS.map((tab) => (
         <button key={tab} type="button" style={{ ...styles.sideButton, ...(screen === "report" && reportTab === tab ? styles.sideButtonActive : {}) }} onClick={() => onSelectReport(tab)}>
           <span>{tabLabel(tab)}</span>
+          {theme === THEME_PINK && tab === "full" && <Sparkles size={13} aria-hidden="true" />}
         </button>
       ))}
 
       <div style={styles.sideFooter}>
+        <button type="button" style={{ ...styles.sideButton, ...(isFiveSActive ? styles.sideButtonActive : {}), marginBottom: 10 }} onClick={onSelectFiveS}>
+          <span>5S</span>
+        </button>
+
         <button type="button" style={{ ...styles.sideButton, ...(isDieNumberActive ? styles.sideButtonActive : {}), marginBottom: 10 }} onClick={onSelectDieNumber}>
           <span>Die #</span>
         </button>
@@ -1338,6 +1611,47 @@ function SidePanel({ screen, reportTab, date, shift, isDieNumberActive, onDateCh
           <label style={styles.label}>Date</label>
           <input type="date" value={date} onChange={(event) => onDateChange(event.target.value)} style={styles.input} />
         </div>
+      </div>
+    </nav>
+  );
+}
+
+function SettingsScreen({ shift, onShiftChange, theme, onThemeChange, goHome, goLineView, onMenuClick }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <Card style={{ ...styles.topBarCard, position: "sticky", top: 0, zIndex: 60 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr) 74px", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 6, justifySelf: "start" }}>
+            <Button small onClick={goHome} aria-label="Home" style={{ width: 42 }}>
+              <Home size={16} aria-hidden="true" />
+            </Button>
+            <Button small onClick={goLineView}>Line</Button>
+          </div>
+
+          <div style={styles.screenTitle}>Settings</div>
+
+          <Button small onClick={onMenuClick} style={{ justifySelf: "stretch", padding: "7px 5px", fontSize: 11 }}>
+            <Menu size={14} aria-hidden="true" />
+            Menu
+          </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <div style={{ fontSize: 15, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8 }}>Theme</div>
+        <div style={styles.shiftGrid}>
+          {THEME_OPTIONS.map(([value, label]) => (
+            <Button key={value} active={theme === value} onClick={() => onThemeChange(value)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+        <div style={{ ...styles.muted, marginTop: 8 }}>
+          {theme === THEME_PINK ? "Soft Pink / Pretty theme" : "Default Theme"}
+        </div>
+      </Card>
+
+      <Card>
         <label style={styles.label}>Shift</label>
         <div style={styles.shiftGrid}>
           {SHIFT_OPTIONS.map((option) => (
@@ -1346,8 +1660,8 @@ function SidePanel({ screen, reportTab, date, shift, isDieNumberActive, onDateCh
             </Button>
           ))}
         </div>
-      </div>
-    </nav>
+      </Card>
+    </div>
   );
 }
 
@@ -1366,11 +1680,12 @@ function ReportHeader({ title, date, shift, printable, dateLabel }) {
   );
 }
 
-function PdfButton({ onClick, isExporting, printable }) {
+function PdfButton({ onClick, onBack, isExporting, printable }) {
   const reportTheme = getReportTheme(printable);
 
   return (
-    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 10 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
+      <Button small onClick={onBack} style={reportTheme.button}>Back</Button>
       <Button small onClick={onClick} disabled={isExporting} style={{ ...reportTheme.button, ...(isExporting ? { opacity: 0.7 } : {}) }}>
         {isExporting ? "PDF..." : "PDF"}
       </Button>
@@ -1507,8 +1822,8 @@ function TemperatureAdjustmentFields({ temperatures, action, onChange }) {
       </div>
       {TEMPERATURE_FIELDS.map(([key, label]) => (
         <div key={key} style={{ display: "grid", gridTemplateColumns: "64px 54px minmax(0, 1fr)", gap: 6, alignItems: "center" }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#e2bd73" }}>{label}</div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#f8e9c4" }}>{temperatures?.[key] || "-"}</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--wn-title, #e2bd73)" }}>{label}</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--wn-input-text, #f8e9c4)" }}>{temperatures?.[key] || "-"}</div>
           <input
             value={action.temperatureAdjustments?.[key] || ""}
             onChange={(event) => onChange(key, event.target.value)}
@@ -1755,7 +2070,7 @@ function LineCalculatorCard({ calculator, updateCalculator, removeCalculator }) 
   return (
     <Card>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <div style={{ fontWeight: 900, color: "#e2bd73" }}>{getCalculatorTitle(calculator.type)}</div>
+        <div style={{ fontWeight: 900, color: "var(--wn-title, #e2bd73)" }}>{getCalculatorTitle(calculator.type)}</div>
         <Button small onClick={() => removeCalculator(calculator.id)}>Delete</Button>
       </div>
 
@@ -1905,7 +2220,7 @@ function SettingsNotesCard({ notes, onAddNote, onChangeNote }) {
 }
 
 function TemperatureSettings({ temperatures, settingsNotes, onChange, onAddSettingsNote, onUpdateSettingsNote, onSaveDieNumber, onImportLastDieSetting }) {
-  const cardTitle = { fontSize: 14, fontWeight: 900, color: "#e2bd73", marginBottom: 8, textShadow: "0 1px 0 #000" };
+  const cardTitle = { fontSize: 14, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8, textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" };
   const renderInput = ([key, label], inputMode = "numeric") => (
     <div key={key} style={{ direction: "ltr" }}>
       <label style={styles.temperatureLabel}>{label}</label>
@@ -1943,6 +2258,7 @@ function TemperatureSettings({ temperatures, settingsNotes, onChange, onAddSetti
       <Card>
         <div style={cardTitle}>Temperatures</div>
         <div style={styles.temperatureGrid}>{TEMPERATURE_FIELDS.map(renderInput)}</div>
+        <div style={{ ...styles.settingsGridFour, marginTop: 8 }}>{AUX_TEMPERATURE_FIELDS.map(renderInput)}</div>
       </Card>
 
       <Card>
@@ -1970,7 +2286,7 @@ function DieSettingsScreen({
   onUpdateDieSettingNote,
 }) {
   const [editingId, setEditingId] = useState("");
-  const cardTitle = { fontSize: 14, fontWeight: 900, color: "#e2bd73", marginBottom: 8, textShadow: "0 1px 0 #000" };
+  const cardTitle = { fontSize: 14, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8, textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" };
   const renderInput = (setting, [key, label], inputMode = "text") => (
     <div key={key} style={{ direction: "ltr" }}>
       <label style={styles.temperatureLabel}>{label}</label>
@@ -1985,7 +2301,7 @@ function DieSettingsScreen({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <Card style={{ position: "sticky", top: 0, zIndex: 60 }}>
+      <Card style={{ ...styles.topBarCard, position: "sticky", top: 0, zIndex: 60 }}>
         <div style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr) 74px", gap: 8, alignItems: "center" }}>
           <div style={{ display: "flex", gap: 6, justifySelf: "start" }}>
             <Button small onClick={goHome} aria-label="Home" style={{ width: 42 }}>
@@ -1994,7 +2310,7 @@ function DieSettingsScreen({
             <Button small onClick={goLineView}>Line</Button>
           </div>
 
-          <div style={{ fontWeight: 800, fontSize: 18, textAlign: "center" }}>Die #</div>
+          <div style={styles.screenTitle}>Die #</div>
 
           <Button small onClick={onMenuClick} style={{ justifySelf: "stretch", padding: "7px 5px", fontSize: 11 }}>
             <Menu size={14} aria-hidden="true" />
@@ -2005,14 +2321,14 @@ function DieSettingsScreen({
 
       {dieSettings.length === 0 ? (
         <Card>
-          <div style={{ color: "#d7c497", fontWeight: 800 }}>No saved die settings yet.</div>
+          <div style={{ color: "var(--wn-label, #d7c497)", fontWeight: 800 }}>No saved die settings yet.</div>
         </Card>
       ) : (
         dieSettings.map((setting) => (
           <Card key={setting.id}>
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 18, fontWeight: 900, color: "#e2bd73" }}>{setting.dieNumber}</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "var(--wn-title, #e2bd73)" }}>{setting.dieNumber}</div>
                 {hasText(setting.savedAt) && <div style={{ ...styles.muted, fontSize: 11, marginTop: 2 }}>Date {formatSavedAt(setting.savedAt)}</div>}
               </div>
               <Button small onClick={() => setEditingId((currentId) => (currentId === setting.id ? "" : setting.id))}>
@@ -2029,6 +2345,7 @@ function DieSettingsScreen({
                 <div>
                   <div style={cardTitle}>Temperatures</div>
                   <div style={styles.temperatureGrid}>{TEMPERATURE_FIELDS.map((field) => renderInput(setting, field, "numeric"))}</div>
+                  <div style={{ ...styles.settingsGridFour, marginTop: 8 }}>{AUX_TEMPERATURE_FIELDS.map((field) => renderInput(setting, field, "numeric"))}</div>
                 </div>
                 <div>
                   <div style={cardTitle}>Down Stream</div>
@@ -2049,6 +2366,245 @@ function DieSettingsScreen({
           </Card>
         ))
       )}
+    </div>
+  );
+}
+
+function HighlightedParagraph({ parts, fallback, style }) {
+  const textParts = parts?.length ? parts : [{ text: fallback || "" }];
+
+  return (
+    <p style={style}>
+      {textParts.map((part, index) => (
+        <span key={`${part.text}-${index}`} style={part.highlight ? { color: "var(--wn-title, #e2bd73)", fontWeight: 900 } : undefined}>
+          {part.text}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function FiveSPageHeader({ title, goHome, onReport }) {
+  return (
+    <Card style={{ ...styles.topBarCard, position: "sticky", top: 0, zIndex: 60 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "42px minmax(0, 1fr) 74px", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6, justifySelf: "start" }}>
+          <Button small onClick={goHome} aria-label="Home" style={{ width: 42 }}>
+            <Home size={16} aria-hidden="true" />
+          </Button>
+        </div>
+
+        <div style={styles.screenTitle}>{title}</div>
+
+        <Button small onClick={onReport} style={{ justifySelf: "stretch", padding: "7px 5px", fontSize: 11 }}>Report</Button>
+      </div>
+    </Card>
+  );
+}
+
+function FiveSScreen({ goHome, onSelectStep, onReport }) {
+  const pageTitle = { fontSize: 18, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8, textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" };
+  const sectionTitle = { fontSize: 15, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 6 };
+  const paragraph = { fontSize: 14, lineHeight: "19px", margin: "0 0 8px", color: "var(--wn-text, #f1dfb6)", whiteSpace: "pre-line" };
+  const list = { margin: "4px 0 10px 18px", padding: 0, display: "grid", gap: 3, fontSize: 14, lineHeight: "18px" };
+  const stepButton = {
+    ...styles.button,
+    width: "fit-content",
+    maxWidth: "100%",
+    justifyContent: "center",
+    marginBottom: 8,
+    minHeight: 34,
+    padding: "7px 10px",
+    fontSize: 12,
+    lineHeight: "15px",
+    whiteSpace: "nowrap",
+    color: "var(--wn-title, #e2bd73)",
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <FiveSPageHeader title="5S" goHome={goHome} onReport={onReport} />
+
+      <Card>
+        <div style={pageTitle}>5S</div>
+        <p style={paragraph}>5S is a workplace organization system designed to improve:</p>
+        <ul style={list}>
+          {FIVE_S_IMPROVEMENTS.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+        <p style={paragraph}>It focuses on reducing waste, confusion, and unnecessary movement by creating a structured work environment.</p>
+        <p style={paragraph}>The name comes from five steps:</p>
+      </Card>
+
+      {FIVE_S_STEPS.map((step, index) => (
+        <Card key={step.title}>
+          <button type="button" style={stepButton} onClick={() => onSelectStep(index)}>
+            {index + 1}. {step.title}
+          </button>
+          <HighlightedParagraph parts={step.descriptionParts} fallback={step.description} style={paragraph} />
+          <p style={paragraph}>{step.listTitle}</p>
+          <ul style={list}>
+            {step.items.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+          <p style={paragraph}>{step.goal}</p>
+        </Card>
+      ))}
+
+      <Card>
+        <div style={sectionTitle}>What 5S Tries to Improve</div>
+        <p style={paragraph}>5S mainly reduces:</p>
+        <ul style={list}>
+          {FIVE_S_REDUCES.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+        <p style={paragraph}>It creates a workspace that is easier to understand, maintain, and manage.</p>
+      </Card>
+
+      <Card>
+        <div style={sectionTitle}>Common Misunderstanding</div>
+        <p style={paragraph}>5S is often mistaken for:</p>
+        <p style={paragraph}>"just cleaning."</p>
+        <p style={paragraph}>But the actual purpose is creating a system where:</p>
+        <ul style={list}>
+          {FIVE_S_SYSTEM_GOALS.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+        <p style={paragraph}>Cleaning is only one part of it.</p>
+      </Card>
+    </div>
+  );
+}
+
+function FiveSDetailScreen({ stepIndex, notes, onNoteChange, goHome, goFiveSOverview, onReport }) {
+  const [deleteArmedCard, setDeleteArmedCard] = useState("");
+  const step = FIVE_S_STEPS[stepIndex] || FIVE_S_STEPS[0];
+  const currentNotes = normalizeFiveSNoteEntry(notes?.[String(stepIndex)]);
+  const goalLabel = fiveSGoalLabel(stepIndex);
+  const resultLabel = fiveSResultLabel(stepIndex);
+  const isSortStep = stepIndex === 0;
+  const sortCards = getFiveSSortCards(currentNotes).filter((card) => !card.deleted);
+  const targetAreaBoxStyle = isSortStep ? { width: "50%", minWidth: 150, maxWidth: "100%" } : {};
+  const goalInputStyle = isSortStep ? { ...styles.input, ...targetAreaBoxStyle } : { ...styles.textarea, minHeight: 92 };
+  const paragraph = { fontSize: 14, lineHeight: "19px", margin: "0 0 8px", color: "var(--wn-text, #f1dfb6)", whiteSpace: "pre-line" };
+  const list = { margin: "4px 0 10px 18px", padding: 0, display: "grid", gap: 3, fontSize: 14, lineHeight: "18px" };
+  const sectionTitle = { fontSize: 15, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 6, marginTop: 12 };
+  const redDeleteStyle = { background: "linear-gradient(180deg, #8e2929 0%, #4a1111 100%)", borderColor: "#e18b8b", color: "#ffe2e2" };
+  const sortIntroCardStyle = isSortStep
+    ? {
+      position: "sticky",
+      top: 62,
+      zIndex: 55,
+    }
+    : undefined;
+
+  const renderGoalCard = (noteEntry, cardId = "") => {
+    const items = noteEntry.items.length ? noteEntry.items : noteEntry.result ? [noteEntry.result] : [];
+    const deleteKey = `${stepIndex}:${cardId || "single"}`;
+    const deleteArmed = deleteArmedCard === deleteKey;
+    const updateField = (field, value, itemIndex) => {
+      setDeleteArmedCard("");
+      onNoteChange(stepIndex, field, value, itemIndex, cardId);
+    };
+    const handleDeleteCard = () => {
+      if (!deleteArmed) {
+        setDeleteArmedCard(deleteKey);
+        return;
+      }
+
+      onNoteChange(stepIndex, "deleteCard", "", undefined, cardId);
+      setDeleteArmedCard("");
+    };
+
+    return (
+      <Card key={cardId || "goal-card"}>
+        <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <label style={{ ...styles.label, marginBottom: 0 }}>{goalLabel}</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <Button small onClick={handleDeleteCard} style={deleteArmed ? redDeleteStyle : {}}>
+                Delete
+              </Button>
+              <Button small active={!noteEntry.confirmed} onClick={() => updateField("confirmed", !noteEntry.confirmed)}>
+                {noteEntry.confirmed ? "Edit" : "Confirm"}
+              </Button>
+            </div>
+          </div>
+
+          {noteEntry.confirmed ? (
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={targetAreaBoxStyle}>
+                <DisplayValue label={goalLabel} value={noteEntry.goal} wide />
+              </div>
+              <DisplayValue label={resultLabel} value={isSortStep ? items.filter(hasText).join("\n") : noteEntry.result} wide />
+            </div>
+          ) : (
+            <>
+              {isSortStep ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <input value={noteEntry.goal} onChange={(event) => updateField("goal", event.target.value)} style={goalInputStyle} />
+                  <Button small onClick={() => updateField("addItem")} style={{ marginLeft: "auto" }}>+ Item</Button>
+                </div>
+              ) : (
+                <textarea value={noteEntry.goal} onChange={(event) => updateField("goal", event.target.value)} style={goalInputStyle} />
+              )}
+
+              <label style={styles.label}>{resultLabel}</label>
+              {isSortStep ? (
+                <div style={{ display: "grid", gap: 6 }}>
+                  {items.map((item, itemIndex) => (
+                    <div key={itemIndex} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 34px", gap: 6, alignItems: "center", width: "88%", maxWidth: "100%" }}>
+                      <input
+                        value={item}
+                        onChange={(event) => updateField("item", event.target.value, itemIndex)}
+                        style={{ ...styles.input, width: "100%" }}
+                      />
+                      <Button small onClick={() => updateField("removeItem", "", itemIndex)} aria-label="Remove item" style={{ width: 34, minHeight: 38, padding: 0 }}>
+                        -
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <textarea value={noteEntry.result} onChange={(event) => updateField("result", event.target.value)} style={{ ...styles.textarea, minHeight: 92 }} />
+              )}
+            </>
+          )}
+        </div>
+      </Card>
+    );
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <FiveSPageHeader title={step.title} goHome={goHome} onReport={onReport} />
+
+      <Card style={sortIntroCardStyle}>
+        <div style={{ display: "grid", gridTemplateColumns: isSortStep ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)", gap: 8, alignItems: "center" }}>
+          <HighlightedParagraph parts={step.descriptionParts} fallback={step.description} style={{ ...paragraph, margin: 0 }} />
+          {isSortStep && (
+            <Button small onClick={() => onNoteChange(stepIndex, "addCard")} style={{ justifySelf: "end" }}>
+              Add Target Area
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      {isSortStep ? (
+        <>{sortCards.map((card) => renderGoalCard(card, card.id))}</>
+      ) : currentNotes.deleted ? (
+        <Card>
+          <Button small onClick={() => onNoteChange(stepIndex, "restoreCard")}>Add Goal</Button>
+        </Card>
+      ) : (
+        renderGoalCard(currentNotes)
+      )}
+
+      <Card>
+        <div style={sectionTitle}>{step.listTitle}</div>
+        <ul style={list}>
+          {step.items.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+        <p style={paragraph}>{step.goal}</p>
+      </Card>
+
+      <Button small onClick={goFiveSOverview} style={{ width: 120, maxWidth: "100%", minHeight: 34, padding: "6px 8px", fontSize: 12, marginBottom: 10, color: "var(--wn-title, #e2bd73)" }}>5S Overview</Button>
     </div>
   );
 }
@@ -2106,7 +2662,7 @@ function EntryScreen(props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <Card style={{ position: "sticky", top: 0, zIndex: 60 }}>
+      <Card style={{ ...styles.topBarCard, position: "sticky", top: 0, zIndex: 60 }}>
         <div style={{ display: "grid", gridTemplateColumns: "142px minmax(0, 1fr) 92px", gap: 8, alignItems: "center" }}>
           <div style={{ display: "flex", gap: 6, justifySelf: "start" }}>
             <Button small onClick={goHome} aria-label="Home" style={{ width: 42 }}>
@@ -2118,7 +2674,7 @@ function EntryScreen(props) {
             <Button small onClick={goLineReport}>Report</Button>
           </div>
 
-          <div style={{ fontWeight: 800, fontSize: 18, textAlign: "center" }}>Line {selectedLine}</div>
+          <div style={styles.screenTitle}>Line {selectedLine}</div>
 
           {showSettings ? <div /> : <Button small onClick={addBatch} style={{ justifySelf: "stretch" }}>Add Batch</Button>}
         </div>
@@ -2144,7 +2700,8 @@ function EntryScreen(props) {
             const isEditing = !batch.confirmed;
 
             return (
-              <Card key={batch.id}>
+              <Card key={batch.id} className={`batch-card batch-card-${index % 4}`}>
+                <div className="batch-theme-tag">{batch.batch ? `Batch ${batch.batch}` : "Batch"}</div>
                 {isEditing && (
                   <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 8 }}>
                     <div style={{ display: "flex", gap: 6 }}>
@@ -2270,14 +2827,14 @@ function EntryScreen(props) {
   );
 }
 
-function ScheduleReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+function ScheduleReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport, reportBack }) {
   const grid = { display: "grid", gridTemplateColumns: "28px 48px 45px 30px 1fr 48px", columnGap: 2, textAlign: "left" };
   const reportTheme = getReportTheme(isPrintableReport);
   const batchColumn = { paddingLeft: 6, boxSizing: "border-box" };
 
   return (
     <div>
-      <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
+      <PdfButton onBack={reportBack} onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title="Schedule" date={date} shift={shift} printable={isPrintableReport} />
         <div data-pdf-card="true" style={reportTheme.block}>
@@ -2313,13 +2870,13 @@ function ScheduleReport({ data, date, shift, exportReportPdf, isExporting, isPri
   );
 }
 
-function TroubleshootReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+function TroubleshootReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport, reportBack }) {
   const grid = { display: "grid", gridTemplateColumns: "28px 42px 1fr 1fr 1fr", columnGap: 2 };
   const reportTheme = getReportTheme(isPrintableReport);
 
   return (
     <div>
-      <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
+      <PdfButton onBack={reportBack} onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title="Troubleshoot" date={date} shift={shift} printable={isPrintableReport} />
         <div data-pdf-card="true" style={reportTheme.block}>
@@ -2354,13 +2911,13 @@ function TroubleshootReport({ data, date, shift, exportReportPdf, isExporting, i
   );
 }
 
-function MaterialsReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+function MaterialsReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport, reportBack }) {
   const grid = { display: "grid", gridTemplateColumns: "28px 45px 45px 1fr 1fr 1fr 1fr" };
   const reportTheme = getReportTheme(isPrintableReport);
 
   return (
     <div>
-      <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
+      <PdfButton onBack={reportBack} onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title="Materials" date={date} shift={shift} printable={isPrintableReport} />
         <div data-pdf-card="true" style={reportTheme.block}>
@@ -2530,12 +3087,12 @@ function WeeklyReportLineCards({ weekEntries, reportTheme }) {
   });
 }
 
-function DailyReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+function DailyReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport, reportBack }) {
   const reportTheme = getReportTheme(isPrintableReport);
 
   return (
     <div>
-      <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
+      <PdfButton onBack={reportBack} onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title="Daily Report" date={date} shift={shift} printable={isPrintableReport} />
         <DailyReportLineCards data={data} reportTheme={reportTheme} />
@@ -2544,7 +3101,7 @@ function DailyReport({ data, date, shift, exportReportPdf, isExporting, isPrinta
   );
 }
 
-function WeeklyReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+function WeeklyReport({ data, date, shift, exportReportPdf, isExporting, isPrintableReport, reportBack }) {
   const reportTheme = getReportTheme(isPrintableReport);
   const weekEntries = useMemo(() => getWeekDateValues(date).map((workDate) => ({
     date: workDate,
@@ -2553,7 +3110,7 @@ function WeeklyReport({ data, date, shift, exportReportPdf, isExporting, isPrint
 
   return (
     <div>
-      <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
+      <PdfButton onBack={reportBack} onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title="Weekly Report" date={date} dateLabel={formatWeekRange(date)} shift={shift} printable={isPrintableReport} />
         <WeeklyReportLineCards weekEntries={weekEntries} reportTheme={reportTheme} />
@@ -2562,7 +3119,7 @@ function WeeklyReport({ data, date, shift, exportReportPdf, isExporting, isPrint
   );
 }
 
-function LineReport({ selectedLine, data, date, shift, exportReportPdf, isExporting, isPrintableReport }) {
+function LineReport({ selectedLine, data, date, shift, exportReportPdf, isExporting, isPrintableReport, reportBack }) {
   const lineData = data[selectedLine] || createLineData();
   const batchGrid = { display: "grid", gridTemplateColumns: "48px 42px 1fr 46px", columnGap: 3 };
   const materialGrid = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", columnGap: 3 };
@@ -2586,7 +3143,7 @@ function LineReport({ selectedLine, data, date, shift, exportReportPdf, isExport
 
   return (
     <div>
-      <PdfButton onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
+      <PdfButton onBack={reportBack} onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
       <div id="print-area" style={reportTheme.shell}>
         <ReportHeader title={`Line ${selectedLine} Report`} date={date} shift={shift} printable={isPrintableReport} />
 
@@ -2668,42 +3225,105 @@ function LineReport({ selectedLine, data, date, shift, exportReportPdf, isExport
   );
 }
 
-function ReportScreen({ reportTab, selectedLine, onMenuClick, goHome, goLineView, data, isPrintableReport, togglePrintableReport, ...props }) {
+function FiveSReport({ fiveSReportIndex, fiveSNotes, date, shift, exportReportPdf, isExporting, isPrintableReport, reportBack }) {
+  const reportTheme = getReportTheme(isPrintableReport);
+  const stepIndexes = typeof fiveSReportIndex === "number"
+    ? [fiveSReportIndex]
+    : FIVE_S_STEPS.map((_, index) => index);
+  const detailGrid = { display: "grid", gridTemplateColumns: "72px minmax(0, 1fr)", columnGap: 6, rowGap: 4 };
+  const reportTitleText = typeof fiveSReportIndex === "number" ? `${FIVE_S_STEPS[fiveSReportIndex]?.title || "5S"} Report` : "5S Report";
+
+  return (
+    <div>
+      <PdfButton onBack={reportBack} onClick={exportReportPdf} isExporting={isExporting} printable={isPrintableReport} />
+      <div id="print-area" style={reportTheme.shell}>
+        <ReportHeader title={reportTitleText} date={date} shift={shift} printable={isPrintableReport} />
+
+        {stepIndexes.flatMap((stepIndex) => {
+          const step = FIVE_S_STEPS[stepIndex] || FIVE_S_STEPS[0];
+          const currentNotes = normalizeFiveSNoteEntry(fiveSNotes?.[String(stepIndex)]);
+          const noteEntries = stepIndex === 0
+            ? getFiveSSortCards(currentNotes).filter((card) => !card.deleted)
+            : currentNotes.deleted
+              ? []
+              : [currentNotes];
+
+          return noteEntries.map((noteEntry, noteIndex) => (
+            <div key={`${step.title}-${noteEntry.id || noteIndex}`} data-pdf-card="true" style={reportTheme.block}>
+              <div style={{ ...reportTheme.headRow, borderBottom: 0, marginBottom: 5 }}>{step.title}</div>
+
+              <div style={{ ...detailGrid, ...reportTheme.row }}>
+                <div style={{ fontWeight: 800 }}>{fiveSGoalLabel(stepIndex)}</div>
+                <div>{noteEntry.goal || "-"}</div>
+                <div style={{ fontWeight: 800 }}>{fiveSResultLabel(stepIndex)}</div>
+                <div>{stepIndex === 0 ? noteEntry.items.filter(hasText).join("\n") || "-" : noteEntry.result || "-"}</div>
+              </div>
+            </div>
+          ));
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ReportScreen({ reportTab, selectedLine, fiveSReportIndex, fiveSNotes, theme, onMenuClick, goHome, goLineView, goFiveSOverview, goFiveSDetail, data, isPrintableReport, togglePrintableReport, ...props }) {
   const reportTheme = getReportTheme(isPrintableReport);
   const printableButtonStyle = isPrintableReport ? reportTheme.activeButton : reportTheme.button;
+  const isFiveSReport = reportTab === "fiveS";
+  const reportBack = isFiveSReport
+    ? typeof fiveSReportIndex === "number"
+      ? () => goFiveSDetail(fiveSReportIndex)
+      : goFiveSOverview
+    : goLineView;
+  const reportProps = { ...props, reportBack };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <Card style={{ ...reportTheme.card, position: "sticky", top: 0, zIndex: 60 }}>
+      <Card style={{ ...reportTheme.card, ...(!isPrintableReport ? styles.topBarCard : {}), position: "sticky", top: 0, zIndex: 60 }}>
         <div style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr) 142px", gap: 8, alignItems: "center" }}>
           <div style={{ display: "flex", gap: 6, justifySelf: "start" }}>
             <Button small onClick={goHome} aria-label="Home" style={{ ...reportTheme.button, width: 42 }}>
               <Home size={16} aria-hidden="true" />
             </Button>
-            <Button small onClick={goLineView} style={reportTheme.button}>Line</Button>
+            <Button small onClick={isFiveSReport ? goFiveSOverview : goLineView} style={reportTheme.button}>{isFiveSReport ? "5S" : "Line"}</Button>
           </div>
 
-          <div style={{ fontWeight: 800, fontSize: isPrintableReport ? 16 : 18, textAlign: "center", whiteSpace: "nowrap", minWidth: 0 }}>
-            {reportTitle(reportTab, selectedLine)}
+          <div
+            style={{
+              ...styles.screenTitle,
+              fontSize: isPrintableReport ? 16 : 18,
+              color: isPrintableReport ? "#000" : "var(--wn-title, #e2bd73)",
+              textShadow: isPrintableReport ? "none" : styles.screenTitle.textShadow,
+              whiteSpace: "nowrap",
+              minWidth: 0,
+            }}
+          >
+            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              {reportTitle(reportTab, selectedLine, fiveSReportIndex)}
+              {theme === THEME_PINK && reportTab === "full" && <Sparkles size={13} aria-hidden="true" />}
+            </span>
           </div>
 
           <div style={{ display: "flex", gap: 6, justifySelf: "stretch" }}>
             <Button small onClick={togglePrintableReport} style={{ ...printableButtonStyle, flex: "1 1 0", padding: "7px 5px", fontSize: 11 }}>Printable</Button>
-            <Button small onClick={onMenuClick} style={{ ...reportTheme.button, flex: "1 1 0", padding: "7px 5px", fontSize: 11 }}>
-              <Menu size={14} aria-hidden="true" />
-              Menu
-            </Button>
+            {!isFiveSReport && (
+              <Button small onClick={onMenuClick} style={{ ...reportTheme.button, flex: "1 1 0", padding: "7px 5px", fontSize: 11 }}>
+                <Menu size={14} aria-hidden="true" />
+                Menu
+              </Button>
+            )}
           </div>
         </div>
       </Card>
 
       <Card style={reportTheme.card}>
-        {reportTab === "full" && <DailyReport data={data} isPrintableReport={isPrintableReport} {...props} />}
-        {reportTab === "weekly" && <WeeklyReport data={data} isPrintableReport={isPrintableReport} {...props} />}
-        {reportTab === "schedule" && <ScheduleReport data={data} isPrintableReport={isPrintableReport} {...props} />}
-        {reportTab === "troubleshoot" && <TroubleshootReport data={data} isPrintableReport={isPrintableReport} {...props} />}
-        {reportTab === "materials" && <MaterialsReport data={data} isPrintableReport={isPrintableReport} {...props} />}
-        {reportTab === "line" && <LineReport selectedLine={selectedLine} data={data} isPrintableReport={isPrintableReport} {...props} />}
+        {reportTab === "full" && <DailyReport data={data} isPrintableReport={isPrintableReport} {...reportProps} />}
+        {reportTab === "weekly" && <WeeklyReport data={data} isPrintableReport={isPrintableReport} {...reportProps} />}
+        {reportTab === "schedule" && <ScheduleReport data={data} isPrintableReport={isPrintableReport} {...reportProps} />}
+        {reportTab === "troubleshoot" && <TroubleshootReport data={data} isPrintableReport={isPrintableReport} {...reportProps} />}
+        {reportTab === "materials" && <MaterialsReport data={data} isPrintableReport={isPrintableReport} {...reportProps} />}
+        {reportTab === "line" && <LineReport selectedLine={selectedLine} data={data} isPrintableReport={isPrintableReport} {...reportProps} />}
+        {reportTab === "fiveS" && <FiveSReport fiveSReportIndex={fiveSReportIndex} fiveSNotes={fiveSNotes} isPrintableReport={isPrintableReport} {...reportProps} />}
       </Card>
     </div>
   );
@@ -2712,6 +3332,7 @@ function ReportScreen({ reportTab, selectedLine, onMenuClick, goHome, goLineView
 export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [shift, setShift] = useState(getInitialShift);
+  const [theme, setTheme] = useState(getInitialTheme);
   const [date, setDate] = useState(getInitialDate);
   const [data, setData] = useState(() => loadSavedData(getInitialDate()));
   const [selectedLine, setSelectedLine] = useState("1");
@@ -2725,6 +3346,9 @@ export default function App() {
   const [isPrintableReport, setIsPrintableReport] = useState(false);
   const [showLineSettings, setShowLineSettings] = useState(false);
   const [newCoexNumber, setNewCoexNumber] = useState("02");
+  const [selectedFiveSIndex, setSelectedFiveSIndex] = useState(0);
+  const [fiveSReportIndex, setFiveSReportIndex] = useState(null);
+  const [fiveSNotes, setFiveSNotes] = useState(() => loadFiveSNotes(getInitialDate()));
   const [touchStartX, setTouchStartX] = useState(null);
 
   useEffect(() => {
@@ -2740,6 +3364,10 @@ export default function App() {
   }, [shift]);
 
   useEffect(() => {
+    savePreference(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  useEffect(() => {
     savePreference(LINE_VISIBILITY_STORAGE_KEY, JSON.stringify(normalizeLineVisibility(lineVisibility)));
   }, [lineVisibility]);
 
@@ -2750,6 +3378,10 @@ export default function App() {
   useEffect(() => {
     savePreference(DIE_SETTINGS_STORAGE_KEY, JSON.stringify(normalizeDieSettings(dieSettings)));
   }, [dieSettings]);
+
+  useEffect(() => {
+    savePreference(`${FIVE_S_NOTES_STORAGE_PREFIX}-${date}`, JSON.stringify(normalizeFiveSNotes(fiveSNotes)));
+  }, [date, fiveSNotes]);
 
   const selected = useMemo(() => data[selectedLine] || createLineData(), [data, selectedLine]);
   const selectedCollapseKey = `${date}:${selectedLine}`;
@@ -3070,6 +3702,7 @@ export default function App() {
     if (!isDateInputValue(nextDate)) return;
     setDate(nextDate);
     setData(loadSavedData(nextDate));
+    setFiveSNotes(loadFiveSNotes(nextDate));
   };
 
   const selectLine = (line) => {
@@ -3109,14 +3742,125 @@ export default function App() {
     setSelectedLine(String(LINE_NUMBERS[nextIndex]));
   };
 
-  const moveScreen = (direction) => {
-    const currentIndex = SCREENS.indexOf(screen);
-    if (currentIndex < 0) return;
-    const nextScreen = SCREENS[currentIndex + direction];
-    if (nextScreen) {
-      setScreen(nextScreen);
-      setIsMenuOpen(false);
-    }
+  const moveFiveSStep = (direction) => {
+    setSelectedFiveSIndex((currentIndex) => {
+      const nextIndex = currentIndex + direction;
+      if (nextIndex < 0 || nextIndex >= FIVE_S_STEPS.length) return currentIndex;
+      return nextIndex;
+    });
+  };
+
+  const updateFiveSNote = (index, field, value, itemIndex, cardId) => {
+    setFiveSNotes((previousNotes) => {
+      const normalizedNotes = normalizeFiveSNotes(previousNotes);
+      const key = String(index);
+      const currentNote = normalizedNotes[key] || createFiveSNoteEntry();
+      const isSortStep = Number(index) === 0;
+      const sortCards = getFiveSSortCards(currentNote);
+      const updateSortCards = (cards) => ({
+        ...currentNote,
+        cards,
+        deleted: cards.length === 0,
+      });
+
+      if (isSortStep) {
+        const targetCardId = cardId || SORT_PRIMARY_CARD_ID;
+        const updateTargetCard = (cardUpdater) => {
+          const nextCards = sortCards.map((card) => (card.id === targetCardId ? cardUpdater(card) : card));
+
+          return {
+            ...normalizedNotes,
+            [key]: updateSortCards(nextCards),
+          };
+        };
+
+        if (field === "addCard" || field === "restoreCard") {
+          return {
+            ...normalizedNotes,
+            [key]: updateSortCards([...sortCards, createFiveSCardEntry()]),
+          };
+        }
+
+        if (field === "deleteCard") {
+          return updateTargetCard((card) => ({ ...card, ...createFiveSCardEntry(), id: card.id, deleted: true }));
+        }
+
+        if (field === "addItem") {
+          return updateTargetCard((card) => {
+            const currentItems = card.items.length ? card.items : card.result ? [card.result] : [];
+            return { ...card, items: [...currentItems, ""] };
+          });
+        }
+
+        if (field === "item") {
+          return updateTargetCard((card) => {
+            const currentItems = card.items.length ? card.items : [card.result || ""];
+            const nextItems = currentItems.map((item, indexInItems) => (indexInItems === itemIndex ? value : item));
+
+            return { ...card, items: nextItems, result: nextItems.filter(hasText).join("\n") };
+          });
+        }
+
+        if (field === "removeItem") {
+          return updateTargetCard((card) => {
+            const currentItems = card.items.length ? card.items : card.result ? [card.result] : [];
+            const nextItems = currentItems.filter((_, indexInItems) => indexInItems !== itemIndex);
+
+            return { ...card, items: nextItems, result: nextItems.filter(hasText).join("\n") };
+          });
+        }
+
+        return updateTargetCard((card) => ({ ...card, [field]: value }));
+      }
+
+      if (field === "deleteCard") {
+        return {
+          ...normalizedNotes,
+          [key]: { ...createFiveSNoteEntry(), deleted: true },
+        };
+      }
+
+      if (field === "restoreCard") {
+        return {
+          ...normalizedNotes,
+          [key]: createFiveSNoteEntry(),
+        };
+      }
+
+      if (field === "addItem") {
+        const currentItems = currentNote.items.length ? currentNote.items : currentNote.result ? [currentNote.result] : [];
+
+        return {
+          ...normalizedNotes,
+          [key]: { ...currentNote, items: [...currentItems, ""] },
+        };
+      }
+
+      if (field === "item") {
+        const currentItems = currentNote.items.length ? currentNote.items : [currentNote.result || ""];
+        const nextItems = currentItems.map((item, indexInItems) => (indexInItems === itemIndex ? value : item));
+
+        return {
+          ...normalizedNotes,
+          [key]: { ...currentNote, items: nextItems, result: nextItems.filter(hasText).join("\n") },
+        };
+      }
+
+      if (field === "removeItem") {
+        const currentItems = currentNote.items.length ? currentNote.items : currentNote.result ? [currentNote.result] : [];
+        const nextItems = currentItems.filter((_, indexInItems) => indexInItems !== itemIndex);
+
+        return {
+          ...normalizedNotes,
+          [key]: { ...currentNote, items: nextItems, result: nextItems.filter(hasText).join("\n") },
+        };
+      }
+
+      return {
+        ...normalizedNotes,
+        [key]: { ...currentNote, [field]: value },
+      };
+    });
   };
 
   const goHome = () => {
@@ -3134,6 +3878,15 @@ export default function App() {
 
   const goLineReport = () => {
     setReportTab("line");
+    setScreen("report");
+    setIsEditingLines(false);
+    setShowLineSettings(false);
+    setIsMenuOpen(false);
+  };
+
+  const goFiveSReport = (stepIndex = null) => {
+    setFiveSReportIndex(typeof stepIndex === "number" ? stepIndex : null);
+    setReportTab("fiveS");
     setScreen("report");
     setIsEditingLines(false);
     setShowLineSettings(false);
@@ -3163,6 +3916,28 @@ export default function App() {
     setIsMenuOpen(false);
   };
 
+  const openSettingsPage = () => {
+    setScreen("settings");
+    setShowLineSettings(false);
+    setIsEditingLines(false);
+    setIsMenuOpen(false);
+  };
+
+  const openFiveSPage = () => {
+    setScreen("fiveS");
+    setShowLineSettings(false);
+    setIsEditingLines(false);
+    setIsMenuOpen(false);
+  };
+
+  const openFiveSDetail = (index) => {
+    setSelectedFiveSIndex(index);
+    setScreen("fiveSDetail");
+    setShowLineSettings(false);
+    setIsEditingLines(false);
+    setIsMenuOpen(false);
+  };
+
   const handleTouchEnd = (event) => {
     if (touchStartX == null) return;
     if (isMenuOpen) {
@@ -3174,12 +3949,16 @@ export default function App() {
     const deltaX = touchStartX - endX;
 
     if (Math.abs(deltaX) > 60) {
-      if (screen === "entry") {
+      const shouldSwipeLines = screen === "entry" || (screen === "report" && reportTab === "line");
+
+      if (shouldSwipeLines) {
         if (deltaX > 0) moveLine(1);
         if (deltaX < 0) moveLine(-1);
-      } else {
-        if (deltaX > 0) moveScreen(1);
-        if (deltaX < 0) moveScreen(-1);
+      }
+
+      if (screen === "fiveSDetail") {
+        if (deltaX > 0) moveFiveSStep(1);
+        if (deltaX < 0) moveFiveSStep(-1);
       }
     }
 
@@ -3239,18 +4018,23 @@ export default function App() {
     data,
     date,
     shift,
+    theme,
     exportReportPdf,
     isExporting,
     goHome,
     goLineView,
+    goFiveSOverview: openFiveSPage,
+    goFiveSDetail: openFiveSDetail,
     selectedLine,
+    fiveSReportIndex,
+    fiveSNotes,
     onMenuClick: toggleMenu,
     isPrintableReport,
     togglePrintableReport: () => setIsPrintableReport((isPrintable) => !isPrintable),
   };
 
   return (
-    <div style={styles.page} onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)} onTouchEnd={handleTouchEnd}>
+    <div style={{ ...styles.page, ...getThemeVariables(theme) }} data-theme={theme} onTouchStart={(event) => setTouchStartX(event.touches[0].clientX)} onTouchEnd={handleTouchEnd}>
       <div style={styles.appFrame}>
         {isMenuOpen && <button type="button" aria-label="Close menu" style={styles.menuScrim} onClick={closeMenu} />}
         {isMenuOpen && (
@@ -3258,12 +4042,13 @@ export default function App() {
             screen={screen}
             reportTab={reportTab}
             date={date}
-            shift={shift}
+            theme={theme}
             isDieNumberActive={screen === "dieSettings"}
+            isFiveSActive={screen === "fiveS" || screen === "fiveSDetail" || (screen === "report" && reportTab === "fiveS")}
             onDateChange={changeDate}
-            onShiftChange={setShift}
             onSelectReport={selectReport}
             onSelectDieNumber={openDieSettingsList}
+            onSelectFiveS={openFiveSPage}
           />
         )}
 
@@ -3275,6 +4060,7 @@ export default function App() {
                 onMenuClick={toggleMenu}
                 isEditingLines={isEditingLines}
                 onEditClick={() => setIsEditingLines((isEditing) => !isEditing)}
+                onSettingsClick={openSettingsPage}
               />
               <LinesScreen
                 data={data}
@@ -3290,6 +4076,18 @@ export default function App() {
 
           {screen === "entry" && <EntryScreen {...sharedEntryProps} />}
 
+          {screen === "settings" && (
+            <SettingsScreen
+              shift={shift}
+              onShiftChange={setShift}
+              theme={theme}
+              onThemeChange={(nextTheme) => setTheme(normalizeTheme(nextTheme))}
+              goHome={goHome}
+              goLineView={goLineView}
+              onMenuClick={toggleMenu}
+            />
+          )}
+
           {screen === "dieSettings" && (
             <DieSettingsScreen
               dieSettings={normalizeDieSettings(dieSettings)}
@@ -3300,6 +4098,19 @@ export default function App() {
               onUpdateDieSettingTemperature={updateDieSettingTemperature}
               onAddDieSettingNote={addDieSettingNote}
               onUpdateDieSettingNote={updateDieSettingNote}
+            />
+          )}
+
+          {screen === "fiveS" && <FiveSScreen goHome={goHome} onSelectStep={openFiveSDetail} onReport={() => goFiveSReport(null)} />}
+
+          {screen === "fiveSDetail" && (
+            <FiveSDetailScreen
+              stepIndex={selectedFiveSIndex}
+              notes={fiveSNotes}
+              onNoteChange={updateFiveSNote}
+              goHome={goHome}
+              goFiveSOverview={openFiveSPage}
+              onReport={() => goFiveSReport(selectedFiveSIndex)}
             />
           )}
 
