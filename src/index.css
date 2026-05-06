@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Lilita+One&display=swap");
+
 html {
   min-width: 320px;
   background: #0a0f12;
@@ -39,6 +41,23 @@ select:active {
 
 [data-theme="pink"] .batch-card {
   position: relative;
+}
+
+[data-theme="pink"] button,
+[data-theme="pink"] select {
+  color: var(--wn-button-text, #ec4899);
+  font-family: var(--wn-button-font, "Lilita One", "Baloo 2", ui-rounded, "Trebuchet MS", sans-serif);
+  font-weight: var(--wn-button-font-weight, 900);
+}
+
+[data-theme="pink"] input,
+[data-theme="pink"] textarea {
+  color: var(--wn-input-text, #9d174d);
+}
+
+[data-theme="pink"] option {
+  color: #9d174d;
+  background: #fff7fb;
 }
 
 [data-theme="pink"] .batch-theme-tag {

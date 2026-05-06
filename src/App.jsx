@@ -196,6 +196,17 @@ const defaultThemeVariables = {
   "--wn-title": titleGold,
   "--wn-title-shadow": "0 1px 0 #000",
   "--wn-font": appFont,
+  "--wn-title-font": appFont,
+  "--wn-button-font": appFont,
+  "--wn-title-size": "19px",
+  "--wn-title-weight": 800,
+  "--wn-button-font-size": "14px",
+  "--wn-small-button-font-size": "12px",
+  "--wn-menu-button-font-size": "13px",
+  "--wn-side-button-font-size": "13px",
+  "--wn-button-font-weight": 800,
+  "--wn-card-title-size": "14px",
+  "--wn-section-title-size": "15px",
   "--wn-card-bg": darkPanel,
   "--wn-card-border": "#6c5230",
   "--wn-card-radius": "8px",
@@ -235,16 +246,27 @@ const defaultThemeVariables = {
 const pinkThemeVariables = {
   ...defaultThemeVariables,
   "--wn-page-bg": "#fff1f5",
-  "--wn-page-bg-image": "linear-gradient(180deg, rgba(249,168,212,.48), rgba(255,241,245,.75) 190px, #fff1f5 420px)",
-  "--wn-app-bg": "#fff7fb",
-  "--wn-app-bg-image": "linear-gradient(135deg, rgba(236,72,153,.18), rgba(249,168,212,.18) 42%, rgba(255,255,255,.9))",
+  "--wn-page-bg-image": "linear-gradient(180deg, rgba(236,72,153,.28), rgba(249,168,212,.58) 185px, #ffe4ef 430px)",
+  "--wn-app-bg": "#fff0f7",
+  "--wn-app-bg-image": "linear-gradient(145deg, rgba(236,72,153,.24) 0%, rgba(249,168,212,.34) 48%, rgba(255,228,240,.96) 100%)",
   "--wn-app-border": "#fbcfe8",
   "--wn-app-shadow": "0 20px 55px rgba(236,72,153,.13)",
-  "--wn-text": "#374151",
-  "--wn-muted": "#6b7280",
+  "--wn-text": "#be185d",
+  "--wn-muted": "#db2777",
   "--wn-title": "#ec4899",
   "--wn-title-shadow": "none",
   "--wn-font": "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  "--wn-title-font": "'Lilita One', 'Baloo 2', ui-rounded, 'Trebuchet MS', sans-serif",
+  "--wn-button-font": "'Lilita One', 'Baloo 2', ui-rounded, 'Trebuchet MS', sans-serif",
+  "--wn-title-size": "22px",
+  "--wn-title-weight": 900,
+  "--wn-button-font-size": "15px",
+  "--wn-small-button-font-size": "13px",
+  "--wn-menu-button-font-size": "15px",
+  "--wn-side-button-font-size": "15px",
+  "--wn-button-font-weight": 900,
+  "--wn-card-title-size": "17px",
+  "--wn-section-title-size": "18px",
   "--wn-card-bg": "#ffffff",
   "--wn-card-border": "#fbcfe8",
   "--wn-card-radius": "22px",
@@ -259,7 +281,7 @@ const pinkThemeVariables = {
   "--wn-button-primary-text": "#ffffff",
   "--wn-button-primary-border": "#ec4899",
   "--wn-input-bg": "#ffffff",
-  "--wn-input-text": "#374151",
+  "--wn-input-text": "#9d174d",
   "--wn-input-border": "#fbcfe8",
   "--wn-input-radius": "18px",
   "--wn-input-shadow": "0 3px 12px rgba(236,72,153,.07)",
@@ -267,15 +289,15 @@ const pinkThemeVariables = {
   "--wn-color-scheme": "light",
   "--wn-label": "#9d174d",
   "--wn-side-bg": "#ffffff",
-  "--wn-side-bg-image": "linear-gradient(180deg, rgba(249,168,212,.26), transparent 190px)",
+  "--wn-side-bg-image": "linear-gradient(180deg, rgba(236,72,153,.22), rgba(249,168,212,.2) 180px, transparent 360px)",
   "--wn-side-border": "#f9a8d4",
   "--wn-side-button-bg": "linear-gradient(180deg, #ffffff 0%, #fff5fa 100%)",
   "--wn-side-button-active-bg": "linear-gradient(135deg, #ec4899 0%, #f472b6 100%)",
   "--wn-side-button-active-text": "#ffffff",
   "--wn-subcard-bg": "#fff7fb",
   "--wn-success": "#ec4899",
-  "--wn-report-bg": "#fff7fb",
-  "--wn-topbar-bg": "linear-gradient(135deg, #ffffff 0%, #ffe4f0 48%, #fbcfe8 100%)",
+  "--wn-report-bg": "#fff0f7",
+  "--wn-topbar-bg": "linear-gradient(135deg, #ffe4f0 0%, #fbcfe8 52%, #f9a8d4 100%)",
   "--wn-topbar-shadow": "0 14px 28px rgba(236,72,153,.15)",
   "--wn-line-toggle-bg": "linear-gradient(180deg, #fff5fa, #ffe4f0)",
   "--wn-line-toggle-text": "#9d174d",
@@ -309,7 +331,7 @@ const styles = {
     boxShadow: "var(--wn-app-shadow, 0 0 0 1px #050708, 0 22px 80px rgba(0,0,0,.52))",
   },
   homeHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 },
-  screenTitle: { fontWeight: 800, fontSize: 18, textAlign: "center", color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
+  screenTitle: { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontWeight: "var(--wn-title-weight, 800)", fontSize: "var(--wn-title-size, 19px)", textAlign: "center", color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
   menuButton: {
     minHeight: 42,
     border: "1px solid var(--wn-button-border, #8d6b3c)",
@@ -317,8 +339,9 @@ const styles = {
     color: "var(--wn-button-text, #f6e4b7)",
     borderRadius: "var(--wn-button-radius, 8px)",
     padding: "8px 10px",
-    fontSize: 13,
-    fontWeight: 800,
+    fontSize: "var(--wn-menu-button-font-size, 13px)",
+    fontWeight: "var(--wn-button-font-weight, 800)",
+    fontFamily: "var(--wn-button-font, Georgia, 'Times New Roman', serif)",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
@@ -370,8 +393,9 @@ const styles = {
     color: "var(--wn-text, #f4e5bd)",
     borderRadius: "var(--wn-button-radius, 8px)",
     padding: "8px 10px",
-    fontSize: 13,
-    fontWeight: 800,
+    fontSize: "var(--wn-side-button-font-size, 13px)",
+    fontWeight: "var(--wn-button-font-weight, 800)",
+    fontFamily: "var(--wn-button-font, Georgia, 'Times New Roman', serif)",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
@@ -401,7 +425,7 @@ const styles = {
     gap: 8,
   },
   secondaryHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 },
-  secondaryTitle: { fontSize: 15, fontWeight: 900, color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
+  secondaryTitle: { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontSize: 15, fontWeight: 900, color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
   closeButton: {
     width: 36,
     height: 36,
@@ -471,8 +495,9 @@ const styles = {
     color: "var(--wn-button-text, #f3dfad)",
     borderRadius: "var(--wn-button-radius, 8px)",
     padding: "10px 12px",
-    fontSize: 14,
-    fontWeight: 800,
+    fontSize: "var(--wn-button-font-size, 14px)",
+    fontWeight: "var(--wn-button-font-weight, 800)",
+    fontFamily: "var(--wn-button-font, Georgia, 'Times New Roman', serif)",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
@@ -482,14 +507,14 @@ const styles = {
     boxShadow: "var(--wn-button-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708)",
     transition: "transform .14s ease, box-shadow .16s ease, background .16s ease",
   },
-  smallButton: { padding: "7px 9px", fontSize: 12, minHeight: 36 },
+  smallButton: { padding: "7px 9px", fontSize: "var(--wn-small-button-font-size, 12px)", minHeight: 36 },
   buttonPrimary: {
     background: "var(--wn-button-primary-bg, linear-gradient(180deg, #1d5a4f 0%, #123134 100%))",
     color: "var(--wn-button-primary-text, #ffe9b4)",
     border: "1px solid var(--wn-button-primary-border, #d0a661)",
     boxShadow: "var(--wn-button-primary-shadow, inset 0 1px 0 rgba(255,255,255,.12), inset 0 -1px 0 rgba(0,0,0,.62), 0 0 0 1px rgba(4,7,8,.7))",
   },
-  reportButton: { border: "1px solid var(--wn-button-border, #8d6b3c)", background: "var(--wn-button-bg, linear-gradient(180deg, #29343a 0%, #151d21 100%))", color: "var(--wn-button-text, #f3dfad)", borderRadius: "var(--wn-button-radius, 8px)", boxShadow: "var(--wn-button-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708)", fontFamily: "var(--wn-font, Georgia, 'Times New Roman', serif)", fontWeight: 800 },
+  reportButton: { border: "1px solid var(--wn-button-border, #8d6b3c)", background: "var(--wn-button-bg, linear-gradient(180deg, #29343a 0%, #151d21 100%))", color: "var(--wn-button-text, #f3dfad)", borderRadius: "var(--wn-button-radius, 8px)", boxShadow: "var(--wn-button-shadow, inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(0,0,0,.55), 0 2px 0 #050708)", fontFamily: "var(--wn-button-font, Georgia, 'Times New Roman', serif)", fontWeight: 800 },
   printableReportButton: { border: "1px solid #000", background: "#fff", color: "#000", borderRadius: 3, boxShadow: "none", fontFamily: "Arial, sans-serif", fontWeight: 700 },
   printableReportButtonActive: { border: "1px solid #000", background: "#000", color: "#fff", borderRadius: 3, boxShadow: "none", fontFamily: "Arial, sans-serif", fontWeight: 700 },
   tabGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 10, position: "sticky", top: 0, zIndex: 20, background: "var(--wn-app-bg, #11191d)", paddingBottom: 8, borderBottom: "1px solid var(--wn-card-border, #6c5230)" },
@@ -497,9 +522,9 @@ const styles = {
   lineGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 },
   panelLineGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5, marginTop: 4 },
   lineColumn: { display: "flex", flexDirection: "column", gap: 6 },
-  lineGroupTitle: { fontWeight: 900, textAlign: "left", fontSize: 14, marginBottom: 2, color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
+  lineGroupTitle: { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontWeight: 900, textAlign: "left", fontSize: 15, marginBottom: 2, color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
   lineGroupButton: { width: "100%", minHeight: 34, padding: "6px 7px", fontSize: 13, justifyContent: "flex-start" },
-  panelLineGroupTitle: { fontWeight: 900, textAlign: "left", fontSize: 10, marginBottom: 2, color: "var(--wn-title, #caa56b)" },
+  panelLineGroupTitle: { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontWeight: 900, textAlign: "left", fontSize: 11, marginBottom: 2, color: "var(--wn-title, #caa56b)" },
   lineButton: { minHeight: 48, fontSize: 18 },
   lineToggleOff: { opacity: 0.45, borderColor: "var(--wn-line-toggle-border, #4f3d25)", color: "var(--wn-line-toggle-text, #a39370)", background: "var(--wn-line-toggle-bg, linear-gradient(180deg, rgba(35,43,47,.72), rgba(13,18,20,.82)))" },
   panelLineButton: { minHeight: 36, padding: "5px 3px", fontSize: 13, borderRadius: 8 },
@@ -531,9 +556,9 @@ const styles = {
   subCard: { border: "1px solid var(--wn-input-border, #5f4a2c)", borderRadius: "var(--wn-card-radius, 8px)", padding: 10, background: "var(--wn-subcard-bg, rgba(7,12,14,.34))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
   coexInset: { borderLeft: "3px solid var(--wn-button-border, #8d6b3c)", paddingLeft: 8, marginTop: 10 },
   reportShell: { width: "100%", overflowX: "hidden", background: "var(--wn-report-bg, #10181c)", color: "var(--wn-text, #f1dfb6)", fontFamily: "var(--wn-font, Georgia, 'Times New Roman', serif)" },
-  reportHeader: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid var(--wn-button-border, #8d6b3c)", color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" },
+  reportHeader: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid var(--wn-button-border, #8d6b3c)", color: "var(--wn-title, #e2bd73)", textShadow: "var(--wn-title-shadow, 0 1px 0 #000)", fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)" },
   reportBlock: { border: "1px solid var(--wn-card-border, #6c5230)", borderRadius: "var(--wn-card-radius, 8px)", padding: 6, marginBottom: 8, background: "var(--wn-subcard-bg, rgba(7,12,14,.34))", color: "var(--wn-text, #f1dfb6)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)" },
-  reportHeadRow: { fontSize: 10, fontWeight: 800, borderBottom: "1px solid var(--wn-card-border, rgba(202,165,107,.5))", paddingBottom: 3, marginBottom: 5, lineHeight: "12px", color: "var(--wn-title, #e2bd73)" },
+  reportHeadRow: { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontSize: 10, fontWeight: 800, borderBottom: "1px solid var(--wn-card-border, rgba(202,165,107,.5))", paddingBottom: 3, marginBottom: 5, lineHeight: "12px", color: "var(--wn-title, #e2bd73)" },
   reportRow: { fontSize: 10, lineHeight: "12px", alignItems: "start", wordBreak: "break-word", whiteSpace: "pre-line", color: "var(--wn-text, #f1dfb6)" },
   printableReportShell: { width: "100%", overflowX: "hidden", background: "#fff", color: "#000", fontFamily: "Arial, sans-serif" },
   printableReportHeader: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid #000", color: "#000", textShadow: "none" },
@@ -1638,7 +1663,7 @@ function SettingsScreen({ shift, onShiftChange, theme, onThemeChange, goHome, go
       </Card>
 
       <Card>
-        <div style={{ fontSize: 15, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8 }}>Theme</div>
+        <div style={{ fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontSize: "var(--wn-section-title-size, 15px)", fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8 }}>Theme</div>
         <div style={styles.shiftGrid}>
           {THEME_OPTIONS.map(([value, label]) => (
             <Button key={value} active={theme === value} onClick={() => onThemeChange(value)}>
@@ -2070,7 +2095,7 @@ function LineCalculatorCard({ calculator, updateCalculator, removeCalculator }) 
   return (
     <Card>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <div style={{ fontWeight: 900, color: "var(--wn-title, #e2bd73)" }}>{getCalculatorTitle(calculator.type)}</div>
+        <div style={{ fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontWeight: 900, color: "var(--wn-title, #e2bd73)" }}>{getCalculatorTitle(calculator.type)}</div>
         <Button small onClick={() => removeCalculator(calculator.id)}>Delete</Button>
       </div>
 
@@ -2220,7 +2245,7 @@ function SettingsNotesCard({ notes, onAddNote, onChangeNote }) {
 }
 
 function TemperatureSettings({ temperatures, settingsNotes, onChange, onAddSettingsNote, onUpdateSettingsNote, onSaveDieNumber, onImportLastDieSetting }) {
-  const cardTitle = { fontSize: 14, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8, textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" };
+  const cardTitle = { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontSize: "var(--wn-card-title-size, 14px)", fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8, textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" };
   const renderInput = ([key, label], inputMode = "numeric") => (
     <div key={key} style={{ direction: "ltr" }}>
       <label style={styles.temperatureLabel}>{label}</label>
@@ -2286,7 +2311,7 @@ function DieSettingsScreen({
   onUpdateDieSettingNote,
 }) {
   const [editingId, setEditingId] = useState("");
-  const cardTitle = { fontSize: 14, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8, textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" };
+  const cardTitle = { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontSize: "var(--wn-card-title-size, 14px)", fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8, textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" };
   const renderInput = (setting, [key, label], inputMode = "text") => (
     <div key={key} style={{ direction: "ltr" }}>
       <label style={styles.temperatureLabel}>{label}</label>
@@ -2328,7 +2353,7 @@ function DieSettingsScreen({
           <Card key={setting.id}>
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 18, fontWeight: 900, color: "var(--wn-title, #e2bd73)" }}>{setting.dieNumber}</div>
+                <div style={{ fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontSize: 18, fontWeight: 900, color: "var(--wn-title, #e2bd73)" }}>{setting.dieNumber}</div>
                 {hasText(setting.savedAt) && <div style={{ ...styles.muted, fontSize: 11, marginTop: 2 }}>Date {formatSavedAt(setting.savedAt)}</div>}
               </div>
               <Button small onClick={() => setEditingId((currentId) => (currentId === setting.id ? "" : setting.id))}>
@@ -2403,8 +2428,8 @@ function FiveSPageHeader({ title, goHome, onReport }) {
 }
 
 function FiveSScreen({ goHome, onSelectStep, onReport }) {
-  const pageTitle = { fontSize: 18, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8, textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" };
-  const sectionTitle = { fontSize: 15, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 6 };
+  const pageTitle = { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontSize: "var(--wn-title-size, 18px)", fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 8, textShadow: "var(--wn-title-shadow, 0 1px 0 #000)" };
+  const sectionTitle = { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontSize: "var(--wn-section-title-size, 15px)", fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 6 };
   const paragraph = { fontSize: 14, lineHeight: "19px", margin: "0 0 8px", color: "var(--wn-text, #f1dfb6)", whiteSpace: "pre-line" };
   const list = { margin: "4px 0 10px 18px", padding: 0, display: "grid", gap: 3, fontSize: 14, lineHeight: "18px" };
   const stepButton = {
@@ -2484,7 +2509,7 @@ function FiveSDetailScreen({ stepIndex, notes, onNoteChange, goHome, goFiveSOver
   const goalInputStyle = isSortStep ? { ...styles.input, ...targetAreaBoxStyle } : { ...styles.textarea, minHeight: 92 };
   const paragraph = { fontSize: 14, lineHeight: "19px", margin: "0 0 8px", color: "var(--wn-text, #f1dfb6)", whiteSpace: "pre-line" };
   const list = { margin: "4px 0 10px 18px", padding: 0, display: "grid", gap: 3, fontSize: 14, lineHeight: "18px" };
-  const sectionTitle = { fontSize: 15, fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 6, marginTop: 12 };
+  const sectionTitle = { fontFamily: "var(--wn-title-font, Georgia, 'Times New Roman', serif)", fontSize: "var(--wn-section-title-size, 15px)", fontWeight: 900, color: "var(--wn-title, #e2bd73)", marginBottom: 6, marginTop: 12 };
   const redDeleteStyle = { background: "linear-gradient(180deg, #8e2929 0%, #4a1111 100%)", borderColor: "#e18b8b", color: "#ffe2e2" };
   const sortIntroCardStyle = isSortStep
     ? {
